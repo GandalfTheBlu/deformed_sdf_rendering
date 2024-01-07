@@ -1,0 +1,385 @@
+
+---
+events:
+  -
+    kind: "message-v1"
+    backtrace:
+      - "C:/Program Files/CMake/share/cmake-3.26/Modules/CMakeDetermineSystem.cmake:204 (message)"
+      - "CMakeLists.txt:5 (PROJECT)"
+    message: |
+      The system is: Windows - 10.0.19045 - AMD64
+  -
+    kind: "message-v1"
+    backtrace:
+      - "C:/Program Files/CMake/share/cmake-3.26/Modules/CMakeDetermineCompilerId.cmake:17 (message)"
+      - "C:/Program Files/CMake/share/cmake-3.26/Modules/CMakeDetermineCompilerId.cmake:64 (__determine_compiler_id_test)"
+      - "C:/Program Files/CMake/share/cmake-3.26/Modules/CMakeDetermineCCompiler.cmake:123 (CMAKE_DETERMINE_COMPILER_ID)"
+      - "CMakeLists.txt:5 (PROJECT)"
+    message: |
+      Compiling the C compiler identification source file "CMakeCCompilerId.c" succeeded.
+      Compiler:  
+      Build flags: 
+      Id flags:  
+      
+      The output was:
+      0
+      Microsoft (R) Build Engine version 16.11.1+3e40a09f8 for .NET Framework
+      Copyright (C) Microsoft Corporation. All rights reserved.
+      
+      Build started 2024-01-07 16:42:22.
+      Project "C:\\Users\\Gandalf\\git\\deformed_sdf_rendering\\build\\CMakeFiles\\3.26.3\\CompilerIdC\\CompilerIdC.vcxproj" on node 1 (default targets).
+      PrepareForBuild:
+        Creating directory "Debug\\".
+        Creating directory "Debug\\CompilerIdC.tlog\\".
+      InitializeBuildStatus:
+        Creating "Debug\\CompilerIdC.tlog\\unsuccessfulbuild" because "AlwaysCreate" was specified.
+      ClCompile:
+        C:\\Program Files (x86)\\Microsoft Visual Studio\\2019\\Community\\VC\\Tools\\MSVC\\14.29.30133\\bin\\HostX64\\x64\\CL.exe /c /nologo /W0 /WX- /diagnostics:column /Od /D _MBCS /Gm- /EHsc /RTC1 /MDd /GS /fp:precise /Zc:wchar_t /Zc:forScope /Zc:inline /Fo"Debug\\\\" /Fd"Debug\\vc142.pdb" /external:W0 /Gd /TC /FC /errorReport:queue CMakeCCompilerId.c
+        CMakeCCompilerId.c
+      Link:
+        C:\\Program Files (x86)\\Microsoft Visual Studio\\2019\\Community\\VC\\Tools\\MSVC\\14.29.30133\\bin\\HostX64\\x64\\link.exe /ERRORREPORT:QUEUE /OUT:".\\CompilerIdC.exe" /INCREMENTAL:NO /NOLOGO kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib /MANIFEST /MANIFESTUAC:"level='asInvoker' uiAccess='false'" /manifest:embed /PDB:".\\CompilerIdC.pdb" /SUBSYSTEM:CONSOLE /TLBID:1 /DYNAMICBASE /NXCOMPAT /IMPLIB:".\\CompilerIdC.lib" /MACHINE:X64 Debug\\CMakeCCompilerId.obj
+        CompilerIdC.vcxproj -> C:\\Users\\Gandalf\\git\\deformed_sdf_rendering\\build\\CMakeFiles\\3.26.3\\CompilerIdC\\CompilerIdC.exe
+      PostBuildEvent:
+        for %%i in (cl.exe) do @echo CMAKE_C_COMPILER=%%~$PATH:i
+        :VCEnd
+        CMAKE_C_COMPILER=C:\\Program Files (x86)\\Microsoft Visual Studio\\2019\\Community\\VC\\Tools\\MSVC\\14.29.30133\\bin\\Hostx64\\x64\\cl.exe
+      FinalizeBuildStatus:
+        Deleting file "Debug\\CompilerIdC.tlog\\unsuccessfulbuild".
+        Touching "Debug\\CompilerIdC.tlog\\CompilerIdC.lastbuildstate".
+      Done Building Project "C:\\Users\\Gandalf\\git\\deformed_sdf_rendering\\build\\CMakeFiles\\3.26.3\\CompilerIdC\\CompilerIdC.vcxproj" (default targets).
+      
+      Build succeeded.
+          0 Warning(s)
+          0 Error(s)
+      
+      Time Elapsed 00:00:00.60
+      
+      
+      Compilation of the C compiler identification source "CMakeCCompilerId.c" produced "CompilerIdC.exe"
+      
+      Compilation of the C compiler identification source "CMakeCCompilerId.c" produced "CompilerIdC.vcxproj"
+      
+      The C compiler identification is MSVC, found in:
+        C:/Users/Gandalf/git/deformed_sdf_rendering/build/CMakeFiles/3.26.3/CompilerIdC/CompilerIdC.exe
+      
+  -
+    kind: "message-v1"
+    backtrace:
+      - "C:/Program Files/CMake/share/cmake-3.26/Modules/CMakeDetermineCompilerId.cmake:17 (message)"
+      - "C:/Program Files/CMake/share/cmake-3.26/Modules/CMakeDetermineCompilerId.cmake:64 (__determine_compiler_id_test)"
+      - "C:/Program Files/CMake/share/cmake-3.26/Modules/CMakeDetermineCXXCompiler.cmake:126 (CMAKE_DETERMINE_COMPILER_ID)"
+      - "CMakeLists.txt:5 (PROJECT)"
+    message: |
+      Compiling the CXX compiler identification source file "CMakeCXXCompilerId.cpp" succeeded.
+      Compiler:  
+      Build flags: 
+      Id flags:  
+      
+      The output was:
+      0
+      Microsoft (R) Build Engine version 16.11.1+3e40a09f8 for .NET Framework
+      Copyright (C) Microsoft Corporation. All rights reserved.
+      
+      Build started 2024-01-07 16:42:23.
+      Project "C:\\Users\\Gandalf\\git\\deformed_sdf_rendering\\build\\CMakeFiles\\3.26.3\\CompilerIdCXX\\CompilerIdCXX.vcxproj" on node 1 (default targets).
+      PrepareForBuild:
+        Creating directory "Debug\\".
+        Creating directory "Debug\\CompilerIdCXX.tlog\\".
+      InitializeBuildStatus:
+        Creating "Debug\\CompilerIdCXX.tlog\\unsuccessfulbuild" because "AlwaysCreate" was specified.
+      ClCompile:
+        C:\\Program Files (x86)\\Microsoft Visual Studio\\2019\\Community\\VC\\Tools\\MSVC\\14.29.30133\\bin\\HostX64\\x64\\CL.exe /c /nologo /W0 /WX- /diagnostics:column /Od /D _MBCS /Gm- /EHsc /RTC1 /MDd /GS /fp:precise /Zc:wchar_t /Zc:forScope /Zc:inline /Fo"Debug\\\\" /Fd"Debug\\vc142.pdb" /external:W0 /Gd /TP /FC /errorReport:queue CMakeCXXCompilerId.cpp
+        CMakeCXXCompilerId.cpp
+      Link:
+        C:\\Program Files (x86)\\Microsoft Visual Studio\\2019\\Community\\VC\\Tools\\MSVC\\14.29.30133\\bin\\HostX64\\x64\\link.exe /ERRORREPORT:QUEUE /OUT:".\\CompilerIdCXX.exe" /INCREMENTAL:NO /NOLOGO kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib /MANIFEST /MANIFESTUAC:"level='asInvoker' uiAccess='false'" /manifest:embed /PDB:".\\CompilerIdCXX.pdb" /SUBSYSTEM:CONSOLE /TLBID:1 /DYNAMICBASE /NXCOMPAT /IMPLIB:".\\CompilerIdCXX.lib" /MACHINE:X64 Debug\\CMakeCXXCompilerId.obj
+        CompilerIdCXX.vcxproj -> C:\\Users\\Gandalf\\git\\deformed_sdf_rendering\\build\\CMakeFiles\\3.26.3\\CompilerIdCXX\\CompilerIdCXX.exe
+      PostBuildEvent:
+        for %%i in (cl.exe) do @echo CMAKE_CXX_COMPILER=%%~$PATH:i
+        :VCEnd
+        CMAKE_CXX_COMPILER=C:\\Program Files (x86)\\Microsoft Visual Studio\\2019\\Community\\VC\\Tools\\MSVC\\14.29.30133\\bin\\Hostx64\\x64\\cl.exe
+      FinalizeBuildStatus:
+        Deleting file "Debug\\CompilerIdCXX.tlog\\unsuccessfulbuild".
+        Touching "Debug\\CompilerIdCXX.tlog\\CompilerIdCXX.lastbuildstate".
+      Done Building Project "C:\\Users\\Gandalf\\git\\deformed_sdf_rendering\\build\\CMakeFiles\\3.26.3\\CompilerIdCXX\\CompilerIdCXX.vcxproj" (default targets).
+      
+      Build succeeded.
+          0 Warning(s)
+          0 Error(s)
+      
+      Time Elapsed 00:00:00.49
+      
+      
+      Compilation of the CXX compiler identification source "CMakeCXXCompilerId.cpp" produced "CompilerIdCXX.exe"
+      
+      Compilation of the CXX compiler identification source "CMakeCXXCompilerId.cpp" produced "CompilerIdCXX.vcxproj"
+      
+      The CXX compiler identification is MSVC, found in:
+        C:/Users/Gandalf/git/deformed_sdf_rendering/build/CMakeFiles/3.26.3/CompilerIdCXX/CompilerIdCXX.exe
+      
+  -
+    kind: "try_compile-v1"
+    backtrace:
+      - "C:/Program Files/CMake/share/cmake-3.26/Modules/CMakeDetermineCompilerABI.cmake:57 (try_compile)"
+      - "C:/Program Files/CMake/share/cmake-3.26/Modules/CMakeTestCCompiler.cmake:26 (CMAKE_DETERMINE_COMPILER_ABI)"
+      - "CMakeLists.txt:5 (PROJECT)"
+    checks:
+      - "Detecting C compiler ABI info"
+    directories:
+      source: "C:/Users/Gandalf/git/deformed_sdf_rendering/build/CMakeFiles/CMakeScratch/TryCompile-y20srr"
+      binary: "C:/Users/Gandalf/git/deformed_sdf_rendering/build/CMakeFiles/CMakeScratch/TryCompile-y20srr"
+    cmakeVariables:
+      CMAKE_C_FLAGS: "/DWIN32 /D_WINDOWS /W3"
+    buildResult:
+      variable: "CMAKE_C_ABI_COMPILED"
+      cached: true
+      stdout: |
+        Change Dir: C:/Users/Gandalf/git/deformed_sdf_rendering/build/CMakeFiles/CMakeScratch/TryCompile-y20srr
+        
+        Run Build Command(s):C:/Program Files (x86)/Microsoft Visual Studio/2019/Community/MSBuild/Current/Bin/MSBuild.exe cmTC_0ad77.vcxproj /p:Configuration=Debug /p:Platform=x64 /p:VisualStudioVersion=16.0 /v:n && Microsoft (R) Build Engine version 16.11.1+3e40a09f8 for .NET Framework
+        Copyright (C) Microsoft Corporation. All rights reserved.
+        
+        Build started 2024-01-07 16:42:23.
+        Project "C:\\Users\\Gandalf\\git\\deformed_sdf_rendering\\build\\CMakeFiles\\CMakeScratch\\TryCompile-y20srr\\cmTC_0ad77.vcxproj" on node 1 (default targets).
+        PrepareForBuild:
+          Creating directory "cmTC_0ad77.dir\\Debug\\".
+          Creating directory "C:\\Users\\Gandalf\\git\\deformed_sdf_rendering\\build\\CMakeFiles\\CMakeScratch\\TryCompile-y20srr\\Debug\\".
+          Creating directory "cmTC_0ad77.dir\\Debug\\cmTC_0ad77.tlog\\".
+        InitializeBuildStatus:
+          Creating "cmTC_0ad77.dir\\Debug\\cmTC_0ad77.tlog\\unsuccessfulbuild" because "AlwaysCreate" was specified.
+        ClCompile:
+          C:\\Program Files (x86)\\Microsoft Visual Studio\\2019\\Community\\VC\\Tools\\MSVC\\14.29.30133\\bin\\HostX64\\x64\\CL.exe /c /Zi /W3 /WX- /diagnostics:column /Od /Ob0 /D _MBCS /D WIN32 /D _WINDOWS /D "CMAKE_INTDIR=\\"Debug\\"" /Gm- /RTC1 /MDd /GS /fp:precise /Zc:wchar_t /Zc:forScope /Zc:inline /Fo"cmTC_0ad77.dir\\Debug\\\\" /Fd"cmTC_0ad77.dir\\Debug\\vc142.pdb" /external:W3 /Gd /TC /errorReport:queue "C:\\Program Files\\CMake\\share\\cmake-3.26\\Modules\\CMakeCCompilerABI.c"
+          Microsoft (R) C/C++ Optimizing Compiler Version 19.29.30136 for x64
+          Copyright (C) Microsoft Corporation.  All rights reserved.
+          CMakeCCompilerABI.c
+          cl /c /Zi /W3 /WX- /diagnostics:column /Od /Ob0 /D _MBCS /D WIN32 /D _WINDOWS /D "CMAKE_INTDIR=\\"Debug\\"" /Gm- /RTC1 /MDd /GS /fp:precise /Zc:wchar_t /Zc:forScope /Zc:inline /Fo"cmTC_0ad77.dir\\Debug\\\\" /Fd"cmTC_0ad77.dir\\Debug\\vc142.pdb" /external:W3 /Gd /TC /errorReport:queue "C:\\Program Files\\CMake\\share\\cmake-3.26\\Modules\\CMakeCCompilerABI.c"
+        Link:
+          C:\\Program Files (x86)\\Microsoft Visual Studio\\2019\\Community\\VC\\Tools\\MSVC\\14.29.30133\\bin\\HostX64\\x64\\link.exe /ERRORREPORT:QUEUE /OUT:"C:\\Users\\Gandalf\\git\\deformed_sdf_rendering\\build\\CMakeFiles\\CMakeScratch\\TryCompile-y20srr\\Debug\\cmTC_0ad77.exe" /INCREMENTAL /ILK:"cmTC_0ad77.dir\\Debug\\cmTC_0ad77.ilk" /NOLOGO kernel32.lib user32.lib gdi32.lib winspool.lib shell32.lib ole32.lib oleaut32.lib uuid.lib comdlg32.lib advapi32.lib /MANIFEST /MANIFESTUAC:"level='asInvoker' uiAccess='false'" /manifest:embed /DEBUG /PDB:"C:/Users/Gandalf/git/deformed_sdf_rendering/build/CMakeFiles/CMakeScratch/TryCompile-y20srr/Debug/cmTC_0ad77.pdb" /SUBSYSTEM:CONSOLE /TLBID:1 /DYNAMICBASE /NXCOMPAT /IMPLIB:"C:/Users/Gandalf/git/deformed_sdf_rendering/build/CMakeFiles/CMakeScratch/TryCompile-y20srr/Debug/cmTC_0ad77.lib" /MACHINE:X64  /machine:x64 cmTC_0ad77.dir\\Debug\\CMakeCCompilerABI.obj
+          cmTC_0ad77.vcxproj -> C:\\Users\\Gandalf\\git\\deformed_sdf_rendering\\build\\CMakeFiles\\CMakeScratch\\TryCompile-y20srr\\Debug\\cmTC_0ad77.exe
+        FinalizeBuildStatus:
+          Deleting file "cmTC_0ad77.dir\\Debug\\cmTC_0ad77.tlog\\unsuccessfulbuild".
+          Touching "cmTC_0ad77.dir\\Debug\\cmTC_0ad77.tlog\\cmTC_0ad77.lastbuildstate".
+        Done Building Project "C:\\Users\\Gandalf\\git\\deformed_sdf_rendering\\build\\CMakeFiles\\CMakeScratch\\TryCompile-y20srr\\cmTC_0ad77.vcxproj" (default targets).
+        
+        Build succeeded.
+            0 Warning(s)
+            0 Error(s)
+        
+        Time Elapsed 00:00:00.48
+        
+      exitCode: 0
+  -
+    kind: "try_compile-v1"
+    backtrace:
+      - "C:/Program Files/CMake/share/cmake-3.26/Modules/CMakeDetermineCompilerABI.cmake:57 (try_compile)"
+      - "C:/Program Files/CMake/share/cmake-3.26/Modules/CMakeTestCXXCompiler.cmake:26 (CMAKE_DETERMINE_COMPILER_ABI)"
+      - "CMakeLists.txt:5 (PROJECT)"
+    checks:
+      - "Detecting CXX compiler ABI info"
+    directories:
+      source: "C:/Users/Gandalf/git/deformed_sdf_rendering/build/CMakeFiles/CMakeScratch/TryCompile-wl83a3"
+      binary: "C:/Users/Gandalf/git/deformed_sdf_rendering/build/CMakeFiles/CMakeScratch/TryCompile-wl83a3"
+    cmakeVariables:
+      CMAKE_CXX_FLAGS: "/DWIN32 /D_WINDOWS /W3 /GR /EHsc"
+    buildResult:
+      variable: "CMAKE_CXX_ABI_COMPILED"
+      cached: true
+      stdout: |
+        Change Dir: C:/Users/Gandalf/git/deformed_sdf_rendering/build/CMakeFiles/CMakeScratch/TryCompile-wl83a3
+        
+        Run Build Command(s):C:/Program Files (x86)/Microsoft Visual Studio/2019/Community/MSBuild/Current/Bin/MSBuild.exe cmTC_1638e.vcxproj /p:Configuration=Debug /p:Platform=x64 /p:VisualStudioVersion=16.0 /v:n && Microsoft (R) Build Engine version 16.11.1+3e40a09f8 for .NET Framework
+        Copyright (C) Microsoft Corporation. All rights reserved.
+        
+        Build started 2024-01-07 16:42:24.
+        Project "C:\\Users\\Gandalf\\git\\deformed_sdf_rendering\\build\\CMakeFiles\\CMakeScratch\\TryCompile-wl83a3\\cmTC_1638e.vcxproj" on node 1 (default targets).
+        PrepareForBuild:
+          Creating directory "cmTC_1638e.dir\\Debug\\".
+          Creating directory "C:\\Users\\Gandalf\\git\\deformed_sdf_rendering\\build\\CMakeFiles\\CMakeScratch\\TryCompile-wl83a3\\Debug\\".
+          Creating directory "cmTC_1638e.dir\\Debug\\cmTC_1638e.tlog\\".
+        InitializeBuildStatus:
+          Creating "cmTC_1638e.dir\\Debug\\cmTC_1638e.tlog\\unsuccessfulbuild" because "AlwaysCreate" was specified.
+        ClCompile:
+          C:\\Program Files (x86)\\Microsoft Visual Studio\\2019\\Community\\VC\\Tools\\MSVC\\14.29.30133\\bin\\HostX64\\x64\\CL.exe /c /Zi /W3 /WX- /diagnostics:column /Od /Ob0 /D _MBCS /D WIN32 /D _WINDOWS /D "CMAKE_INTDIR=\\"Debug\\"" /Gm- /EHsc /RTC1 /MDd /GS /fp:precise /Zc:wchar_t /Zc:forScope /Zc:inline /GR /Fo"cmTC_1638e.dir\\Debug\\\\" /Fd"cmTC_1638e.dir\\Debug\\vc142.pdb" /external:W3 /Gd /TP /errorReport:queue "C:\\Program Files\\CMake\\share\\cmake-3.26\\Modules\\CMakeCXXCompilerABI.cpp"
+          Microsoft (R) C/C++ Optimizing Compiler Version 19.29.30136 for x64
+          Copyright (C) Microsoft Corporation.  All rights reserved.
+          CMakeCXXCompilerABI.cpp
+          cl /c /Zi /W3 /WX- /diagnostics:column /Od /Ob0 /D _MBCS /D WIN32 /D _WINDOWS /D "CMAKE_INTDIR=\\"Debug\\"" /Gm- /EHsc /RTC1 /MDd /GS /fp:precise /Zc:wchar_t /Zc:forScope /Zc:inline /GR /Fo"cmTC_1638e.dir\\Debug\\\\" /Fd"cmTC_1638e.dir\\Debug\\vc142.pdb" /external:W3 /Gd /TP /errorReport:queue "C:\\Program Files\\CMake\\share\\cmake-3.26\\Modules\\CMakeCXXCompilerABI.cpp"
+        Link:
+          C:\\Program Files (x86)\\Microsoft Visual Studio\\2019\\Community\\VC\\Tools\\MSVC\\14.29.30133\\bin\\HostX64\\x64\\link.exe /ERRORREPORT:QUEUE /OUT:"C:\\Users\\Gandalf\\git\\deformed_sdf_rendering\\build\\CMakeFiles\\CMakeScratch\\TryCompile-wl83a3\\Debug\\cmTC_1638e.exe" /INCREMENTAL /ILK:"cmTC_1638e.dir\\Debug\\cmTC_1638e.ilk" /NOLOGO kernel32.lib user32.lib gdi32.lib winspool.lib shell32.lib ole32.lib oleaut32.lib uuid.lib comdlg32.lib advapi32.lib /MANIFEST /MANIFESTUAC:"level='asInvoker' uiAccess='false'" /manifest:embed /DEBUG /PDB:"C:/Users/Gandalf/git/deformed_sdf_rendering/build/CMakeFiles/CMakeScratch/TryCompile-wl83a3/Debug/cmTC_1638e.pdb" /SUBSYSTEM:CONSOLE /TLBID:1 /DYNAMICBASE /NXCOMPAT /IMPLIB:"C:/Users/Gandalf/git/deformed_sdf_rendering/build/CMakeFiles/CMakeScratch/TryCompile-wl83a3/Debug/cmTC_1638e.lib" /MACHINE:X64  /machine:x64 cmTC_1638e.dir\\Debug\\CMakeCXXCompilerABI.obj
+          cmTC_1638e.vcxproj -> C:\\Users\\Gandalf\\git\\deformed_sdf_rendering\\build\\CMakeFiles\\CMakeScratch\\TryCompile-wl83a3\\Debug\\cmTC_1638e.exe
+        FinalizeBuildStatus:
+          Deleting file "cmTC_1638e.dir\\Debug\\cmTC_1638e.tlog\\unsuccessfulbuild".
+          Touching "cmTC_1638e.dir\\Debug\\cmTC_1638e.tlog\\cmTC_1638e.lastbuildstate".
+        Done Building Project "C:\\Users\\Gandalf\\git\\deformed_sdf_rendering\\build\\CMakeFiles\\CMakeScratch\\TryCompile-wl83a3\\cmTC_1638e.vcxproj" (default targets).
+        
+        Build succeeded.
+            0 Warning(s)
+            0 Error(s)
+        
+        Time Elapsed 00:00:00.47
+        
+      exitCode: 0
+  -
+    kind: "try_compile-v1"
+    backtrace:
+      - "C:/Program Files/CMake/share/cmake-3.26/Modules/Internal/CheckSourceCompiles.cmake:101 (try_compile)"
+      - "C:/Program Files/CMake/share/cmake-3.26/Modules/CheckCSourceCompiles.cmake:76 (cmake_check_source_compiles)"
+      - "C:/Program Files/CMake/share/cmake-3.26/Modules/FindThreads.cmake:97 (CHECK_C_SOURCE_COMPILES)"
+      - "C:/Program Files/CMake/share/cmake-3.26/Modules/FindThreads.cmake:163 (_threads_check_libc)"
+      - "exts/glfw/CMakeLists.txt:67 (find_package)"
+    checks:
+      - "Performing Test CMAKE_HAVE_LIBC_PTHREAD"
+    directories:
+      source: "C:/Users/Gandalf/git/deformed_sdf_rendering/build/CMakeFiles/CMakeScratch/TryCompile-5hw3cw"
+      binary: "C:/Users/Gandalf/git/deformed_sdf_rendering/build/CMakeFiles/CMakeScratch/TryCompile-5hw3cw"
+    cmakeVariables:
+      CMAKE_C_FLAGS: "/DWIN32 /D_WINDOWS /W3"
+      CMAKE_MODULE_PATH: "C:/Users/Gandalf/git/deformed_sdf_rendering/exts/glfw/CMake/modules"
+    buildResult:
+      variable: "CMAKE_HAVE_LIBC_PTHREAD"
+      cached: true
+      stdout: |
+        Change Dir: C:/Users/Gandalf/git/deformed_sdf_rendering/build/CMakeFiles/CMakeScratch/TryCompile-5hw3cw
+        
+        Run Build Command(s):C:/Program Files (x86)/Microsoft Visual Studio/2019/Community/MSBuild/Current/Bin/MSBuild.exe cmTC_d44f8.vcxproj /p:Configuration=Debug /p:Platform=x64 /p:VisualStudioVersion=16.0 /v:n && Microsoft (R) Build Engine version 16.11.1+3e40a09f8 for .NET Framework
+        Copyright (C) Microsoft Corporation. All rights reserved.
+        
+        Build started 2024-01-07 16:42:25.
+        Project "C:\\Users\\Gandalf\\git\\deformed_sdf_rendering\\build\\CMakeFiles\\CMakeScratch\\TryCompile-5hw3cw\\cmTC_d44f8.vcxproj" on node 1 (default targets).
+        PrepareForBuild:
+          Creating directory "cmTC_d44f8.dir\\Debug\\".
+          Creating directory "C:\\Users\\Gandalf\\git\\deformed_sdf_rendering\\build\\CMakeFiles\\CMakeScratch\\TryCompile-5hw3cw\\Debug\\".
+          Creating directory "cmTC_d44f8.dir\\Debug\\cmTC_d44f8.tlog\\".
+        InitializeBuildStatus:
+          Creating "cmTC_d44f8.dir\\Debug\\cmTC_d44f8.tlog\\unsuccessfulbuild" because "AlwaysCreate" was specified.
+        ClCompile:
+          C:\\Program Files (x86)\\Microsoft Visual Studio\\2019\\Community\\VC\\Tools\\MSVC\\14.29.30133\\bin\\HostX64\\x64\\CL.exe /c /Zi /W3 /WX- /diagnostics:column /Od /Ob0 /D _MBCS /D WIN32 /D _WINDOWS /D CMAKE_HAVE_LIBC_PTHREAD /D "CMAKE_INTDIR=\\"Debug\\"" /Gm- /RTC1 /MDd /GS /fp:precise /Zc:wchar_t /Zc:forScope /Zc:inline /Fo"cmTC_d44f8.dir\\Debug\\\\" /Fd"cmTC_d44f8.dir\\Debug\\vc142.pdb" /external:W3 /Gd /TC /errorReport:queue "C:\\Users\\Gandalf\\git\\deformed_sdf_rendering\\build\\CMakeFiles\\CMakeScratch\\TryCompile-5hw3cw\\src.c"
+          Microsoft (R) C/C++ Optimizing Compiler Version 19.29.30136 for x64
+          Copyright (C) Microsoft Corporation.  All rights reserved.
+          src.c
+          cl /c /Zi /W3 /WX- /diagnostics:column /Od /Ob0 /D _MBCS /D WIN32 /D _WINDOWS /D CMAKE_HAVE_LIBC_PTHREAD /D "CMAKE_INTDIR=\\"Debug\\"" /Gm- /RTC1 /MDd /GS /fp:precise /Zc:wchar_t /Zc:forScope /Zc:inline /Fo"cmTC_d44f8.dir\\Debug\\\\" /Fd"cmTC_d44f8.dir\\Debug\\vc142.pdb" /external:W3 /Gd /TC /errorReport:queue "C:\\Users\\Gandalf\\git\\deformed_sdf_rendering\\build\\CMakeFiles\\CMakeScratch\\TryCompile-5hw3cw\\src.c"
+        C:\\Users\\Gandalf\\git\\deformed_sdf_rendering\\build\\CMakeFiles\\CMakeScratch\\TryCompile-5hw3cw\\src.c(1,10): fatal error C1083: Cannot open include file: 'pthread.h': No such file or directory [C:\\Users\\Gandalf\\git\\deformed_sdf_rendering\\build\\CMakeFiles\\CMakeScratch\\TryCompile-5hw3cw\\cmTC_d44f8.vcxproj]
+        Done Building Project "C:\\Users\\Gandalf\\git\\deformed_sdf_rendering\\build\\CMakeFiles\\CMakeScratch\\TryCompile-5hw3cw\\cmTC_d44f8.vcxproj" (default targets) -- FAILED.
+        
+        Build FAILED.
+        
+        "C:\\Users\\Gandalf\\git\\deformed_sdf_rendering\\build\\CMakeFiles\\CMakeScratch\\TryCompile-5hw3cw\\cmTC_d44f8.vcxproj" (default target) (1) ->
+        (ClCompile target) -> 
+          C:\\Users\\Gandalf\\git\\deformed_sdf_rendering\\build\\CMakeFiles\\CMakeScratch\\TryCompile-5hw3cw\\src.c(1,10): fatal error C1083: Cannot open include file: 'pthread.h': No such file or directory [C:\\Users\\Gandalf\\git\\deformed_sdf_rendering\\build\\CMakeFiles\\CMakeScratch\\TryCompile-5hw3cw\\cmTC_d44f8.vcxproj]
+        
+            0 Warning(s)
+            1 Error(s)
+        
+        Time Elapsed 00:00:00.32
+        
+      exitCode: 1
+  -
+    kind: "try_compile-v1"
+    backtrace:
+      - "C:/Program Files/CMake/share/cmake-3.26/Modules/CheckLibraryExists.cmake:71 (try_compile)"
+      - "C:/Program Files/CMake/share/cmake-3.26/Modules/FindThreads.cmake:112 (CHECK_LIBRARY_EXISTS)"
+      - "C:/Program Files/CMake/share/cmake-3.26/Modules/FindThreads.cmake:175 (_threads_check_lib)"
+      - "exts/glfw/CMakeLists.txt:67 (find_package)"
+    checks:
+      - "Looking for pthread_create in pthreads"
+    directories:
+      source: "C:/Users/Gandalf/git/deformed_sdf_rendering/build/CMakeFiles/CMakeScratch/TryCompile-55bqet"
+      binary: "C:/Users/Gandalf/git/deformed_sdf_rendering/build/CMakeFiles/CMakeScratch/TryCompile-55bqet"
+    cmakeVariables:
+      CMAKE_C_FLAGS: "/DWIN32 /D_WINDOWS /W3"
+      CMAKE_MODULE_PATH: "C:/Users/Gandalf/git/deformed_sdf_rendering/exts/glfw/CMake/modules"
+    buildResult:
+      variable: "CMAKE_HAVE_PTHREADS_CREATE"
+      cached: true
+      stdout: |
+        Change Dir: C:/Users/Gandalf/git/deformed_sdf_rendering/build/CMakeFiles/CMakeScratch/TryCompile-55bqet
+        
+        Run Build Command(s):C:/Program Files (x86)/Microsoft Visual Studio/2019/Community/MSBuild/Current/Bin/MSBuild.exe cmTC_be25b.vcxproj /p:Configuration=Debug /p:Platform=x64 /p:VisualStudioVersion=16.0 /v:n && Microsoft (R) Build Engine version 16.11.1+3e40a09f8 for .NET Framework
+        Copyright (C) Microsoft Corporation. All rights reserved.
+        
+        Build started 2024-01-07 16:42:25.
+        Project "C:\\Users\\Gandalf\\git\\deformed_sdf_rendering\\build\\CMakeFiles\\CMakeScratch\\TryCompile-55bqet\\cmTC_be25b.vcxproj" on node 1 (default targets).
+        PrepareForBuild:
+          Creating directory "cmTC_be25b.dir\\Debug\\".
+          Creating directory "C:\\Users\\Gandalf\\git\\deformed_sdf_rendering\\build\\CMakeFiles\\CMakeScratch\\TryCompile-55bqet\\Debug\\".
+          Creating directory "cmTC_be25b.dir\\Debug\\cmTC_be25b.tlog\\".
+        InitializeBuildStatus:
+          Creating "cmTC_be25b.dir\\Debug\\cmTC_be25b.tlog\\unsuccessfulbuild" because "AlwaysCreate" was specified.
+        ClCompile:
+          C:\\Program Files (x86)\\Microsoft Visual Studio\\2019\\Community\\VC\\Tools\\MSVC\\14.29.30133\\bin\\HostX64\\x64\\CL.exe /c /Zi /W3 /WX- /diagnostics:column /Od /Ob0 /D _MBCS /D WIN32 /D _WINDOWS /D CHECK_FUNCTION_EXISTS=pthread_create /D "CMAKE_INTDIR=\\"Debug\\"" /Gm- /RTC1 /MDd /GS /fp:precise /Zc:wchar_t /Zc:forScope /Zc:inline /Fo"cmTC_be25b.dir\\Debug\\\\" /Fd"cmTC_be25b.dir\\Debug\\vc142.pdb" /external:W3 /Gd /TC /errorReport:queue "C:\\Users\\Gandalf\\git\\deformed_sdf_rendering\\build\\CMakeFiles\\CMakeScratch\\TryCompile-55bqet\\CheckFunctionExists.c"
+          Microsoft (R) C/C++ Optimizing Compiler Version 19.29.30136 for x64
+          Copyright (C) Microsoft Corporation.  All rights reserved.
+          CheckFunctionExists.c
+          cl /c /Zi /W3 /WX- /diagnostics:column /Od /Ob0 /D _MBCS /D WIN32 /D _WINDOWS /D CHECK_FUNCTION_EXISTS=pthread_create /D "CMAKE_INTDIR=\\"Debug\\"" /Gm- /RTC1 /MDd /GS /fp:precise /Zc:wchar_t /Zc:forScope /Zc:inline /Fo"cmTC_be25b.dir\\Debug\\\\" /Fd"cmTC_be25b.dir\\Debug\\vc142.pdb" /external:W3 /Gd /TC /errorReport:queue "C:\\Users\\Gandalf\\git\\deformed_sdf_rendering\\build\\CMakeFiles\\CMakeScratch\\TryCompile-55bqet\\CheckFunctionExists.c"
+        Link:
+          C:\\Program Files (x86)\\Microsoft Visual Studio\\2019\\Community\\VC\\Tools\\MSVC\\14.29.30133\\bin\\HostX64\\x64\\link.exe /ERRORREPORT:QUEUE /OUT:"C:\\Users\\Gandalf\\git\\deformed_sdf_rendering\\build\\CMakeFiles\\CMakeScratch\\TryCompile-55bqet\\Debug\\cmTC_be25b.exe" /INCREMENTAL /ILK:"cmTC_be25b.dir\\Debug\\cmTC_be25b.ilk" /NOLOGO pthreads.lib kernel32.lib user32.lib gdi32.lib winspool.lib shell32.lib ole32.lib oleaut32.lib uuid.lib comdlg32.lib advapi32.lib /MANIFEST /MANIFESTUAC:"level='asInvoker' uiAccess='false'" /manifest:embed /DEBUG /PDB:"C:/Users/Gandalf/git/deformed_sdf_rendering/build/CMakeFiles/CMakeScratch/TryCompile-55bqet/Debug/cmTC_be25b.pdb" /SUBSYSTEM:CONSOLE /TLBID:1 /DYNAMICBASE /NXCOMPAT /IMPLIB:"C:/Users/Gandalf/git/deformed_sdf_rendering/build/CMakeFiles/CMakeScratch/TryCompile-55bqet/Debug/cmTC_be25b.lib" /MACHINE:X64  /machine:x64 cmTC_be25b.dir\\Debug\\CheckFunctionExists.obj
+        LINK : fatal error LNK1104: cannot open file 'pthreads.lib' [C:\\Users\\Gandalf\\git\\deformed_sdf_rendering\\build\\CMakeFiles\\CMakeScratch\\TryCompile-55bqet\\cmTC_be25b.vcxproj]
+        Done Building Project "C:\\Users\\Gandalf\\git\\deformed_sdf_rendering\\build\\CMakeFiles\\CMakeScratch\\TryCompile-55bqet\\cmTC_be25b.vcxproj" (default targets) -- FAILED.
+        
+        Build FAILED.
+        
+        "C:\\Users\\Gandalf\\git\\deformed_sdf_rendering\\build\\CMakeFiles\\CMakeScratch\\TryCompile-55bqet\\cmTC_be25b.vcxproj" (default target) (1) ->
+        (Link target) -> 
+          LINK : fatal error LNK1104: cannot open file 'pthreads.lib' [C:\\Users\\Gandalf\\git\\deformed_sdf_rendering\\build\\CMakeFiles\\CMakeScratch\\TryCompile-55bqet\\cmTC_be25b.vcxproj]
+        
+            0 Warning(s)
+            1 Error(s)
+        
+        Time Elapsed 00:00:00.39
+        
+      exitCode: 1
+  -
+    kind: "try_compile-v1"
+    backtrace:
+      - "C:/Program Files/CMake/share/cmake-3.26/Modules/CheckLibraryExists.cmake:71 (try_compile)"
+      - "C:/Program Files/CMake/share/cmake-3.26/Modules/FindThreads.cmake:112 (CHECK_LIBRARY_EXISTS)"
+      - "C:/Program Files/CMake/share/cmake-3.26/Modules/FindThreads.cmake:176 (_threads_check_lib)"
+      - "exts/glfw/CMakeLists.txt:67 (find_package)"
+    checks:
+      - "Looking for pthread_create in pthread"
+    directories:
+      source: "C:/Users/Gandalf/git/deformed_sdf_rendering/build/CMakeFiles/CMakeScratch/TryCompile-jdg96h"
+      binary: "C:/Users/Gandalf/git/deformed_sdf_rendering/build/CMakeFiles/CMakeScratch/TryCompile-jdg96h"
+    cmakeVariables:
+      CMAKE_C_FLAGS: "/DWIN32 /D_WINDOWS /W3"
+      CMAKE_MODULE_PATH: "C:/Users/Gandalf/git/deformed_sdf_rendering/exts/glfw/CMake/modules"
+    buildResult:
+      variable: "CMAKE_HAVE_PTHREAD_CREATE"
+      cached: true
+      stdout: |
+        Change Dir: C:/Users/Gandalf/git/deformed_sdf_rendering/build/CMakeFiles/CMakeScratch/TryCompile-jdg96h
+        
+        Run Build Command(s):C:/Program Files (x86)/Microsoft Visual Studio/2019/Community/MSBuild/Current/Bin/MSBuild.exe cmTC_e1eda.vcxproj /p:Configuration=Debug /p:Platform=x64 /p:VisualStudioVersion=16.0 /v:n && Microsoft (R) Build Engine version 16.11.1+3e40a09f8 for .NET Framework
+        Copyright (C) Microsoft Corporation. All rights reserved.
+        
+        Build started 2024-01-07 16:42:26.
+        Project "C:\\Users\\Gandalf\\git\\deformed_sdf_rendering\\build\\CMakeFiles\\CMakeScratch\\TryCompile-jdg96h\\cmTC_e1eda.vcxproj" on node 1 (default targets).
+        PrepareForBuild:
+          Creating directory "cmTC_e1eda.dir\\Debug\\".
+          Creating directory "C:\\Users\\Gandalf\\git\\deformed_sdf_rendering\\build\\CMakeFiles\\CMakeScratch\\TryCompile-jdg96h\\Debug\\".
+          Creating directory "cmTC_e1eda.dir\\Debug\\cmTC_e1eda.tlog\\".
+        InitializeBuildStatus:
+          Creating "cmTC_e1eda.dir\\Debug\\cmTC_e1eda.tlog\\unsuccessfulbuild" because "AlwaysCreate" was specified.
+        ClCompile:
+          C:\\Program Files (x86)\\Microsoft Visual Studio\\2019\\Community\\VC\\Tools\\MSVC\\14.29.30133\\bin\\HostX64\\x64\\CL.exe /c /Zi /W3 /WX- /diagnostics:column /Od /Ob0 /D _MBCS /D WIN32 /D _WINDOWS /D CHECK_FUNCTION_EXISTS=pthread_create /D "CMAKE_INTDIR=\\"Debug\\"" /Gm- /RTC1 /MDd /GS /fp:precise /Zc:wchar_t /Zc:forScope /Zc:inline /Fo"cmTC_e1eda.dir\\Debug\\\\" /Fd"cmTC_e1eda.dir\\Debug\\vc142.pdb" /external:W3 /Gd /TC /errorReport:queue "C:\\Users\\Gandalf\\git\\deformed_sdf_rendering\\build\\CMakeFiles\\CMakeScratch\\TryCompile-jdg96h\\CheckFunctionExists.c"
+          Microsoft (R) C/C++ Optimizing Compiler Version 19.29.30136 for x64
+          Copyright (C) Microsoft Corporation.  All rights reserved.
+          CheckFunctionExists.c
+          cl /c /Zi /W3 /WX- /diagnostics:column /Od /Ob0 /D _MBCS /D WIN32 /D _WINDOWS /D CHECK_FUNCTION_EXISTS=pthread_create /D "CMAKE_INTDIR=\\"Debug\\"" /Gm- /RTC1 /MDd /GS /fp:precise /Zc:wchar_t /Zc:forScope /Zc:inline /Fo"cmTC_e1eda.dir\\Debug\\\\" /Fd"cmTC_e1eda.dir\\Debug\\vc142.pdb" /external:W3 /Gd /TC /errorReport:queue "C:\\Users\\Gandalf\\git\\deformed_sdf_rendering\\build\\CMakeFiles\\CMakeScratch\\TryCompile-jdg96h\\CheckFunctionExists.c"
+        Link:
+          C:\\Program Files (x86)\\Microsoft Visual Studio\\2019\\Community\\VC\\Tools\\MSVC\\14.29.30133\\bin\\HostX64\\x64\\link.exe /ERRORREPORT:QUEUE /OUT:"C:\\Users\\Gandalf\\git\\deformed_sdf_rendering\\build\\CMakeFiles\\CMakeScratch\\TryCompile-jdg96h\\Debug\\cmTC_e1eda.exe" /INCREMENTAL /ILK:"cmTC_e1eda.dir\\Debug\\cmTC_e1eda.ilk" /NOLOGO pthread.lib kernel32.lib user32.lib gdi32.lib winspool.lib shell32.lib ole32.lib oleaut32.lib uuid.lib comdlg32.lib advapi32.lib /MANIFEST /MANIFESTUAC:"level='asInvoker' uiAccess='false'" /manifest:embed /DEBUG /PDB:"C:/Users/Gandalf/git/deformed_sdf_rendering/build/CMakeFiles/CMakeScratch/TryCompile-jdg96h/Debug/cmTC_e1eda.pdb" /SUBSYSTEM:CONSOLE /TLBID:1 /DYNAMICBASE /NXCOMPAT /IMPLIB:"C:/Users/Gandalf/git/deformed_sdf_rendering/build/CMakeFiles/CMakeScratch/TryCompile-jdg96h/Debug/cmTC_e1eda.lib" /MACHINE:X64  /machine:x64 cmTC_e1eda.dir\\Debug\\CheckFunctionExists.obj
+        LINK : fatal error LNK1104: cannot open file 'pthread.lib' [C:\\Users\\Gandalf\\git\\deformed_sdf_rendering\\build\\CMakeFiles\\CMakeScratch\\TryCompile-jdg96h\\cmTC_e1eda.vcxproj]
+        Done Building Project "C:\\Users\\Gandalf\\git\\deformed_sdf_rendering\\build\\CMakeFiles\\CMakeScratch\\TryCompile-jdg96h\\cmTC_e1eda.vcxproj" (default targets) -- FAILED.
+        
+        Build FAILED.
+        
+        "C:\\Users\\Gandalf\\git\\deformed_sdf_rendering\\build\\CMakeFiles\\CMakeScratch\\TryCompile-jdg96h\\cmTC_e1eda.vcxproj" (default target) (1) ->
+        (Link target) -> 
+          LINK : fatal error LNK1104: cannot open file 'pthread.lib' [C:\\Users\\Gandalf\\git\\deformed_sdf_rendering\\build\\CMakeFiles\\CMakeScratch\\TryCompile-jdg96h\\cmTC_e1eda.vcxproj]
+        
+            0 Warning(s)
+            1 Error(s)
+        
+        Time Elapsed 00:00:00.39
+        
+      exitCode: 1
+...
