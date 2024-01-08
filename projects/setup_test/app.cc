@@ -19,11 +19,11 @@ void App_SetupTest::Init()
 	glPatchParameteri(GL_PATCH_VERTICES, 3);
 
 	shader.Reload(
-		"assets/shaders/flat_vert.glsl", 
+		"assets/shaders/deform_vert.glsl", 
 		"assets/shaders/flat_frag.glsl", 
 		{ 
-			"assets/shaders/tess_control.glsl", 
-			"assets/shaders/tess_eval.glsl"
+			"assets/shaders/deform_tess_control.glsl", 
+			"assets/shaders/deform_tess_eval.glsl"
 		}
 	);
 }
