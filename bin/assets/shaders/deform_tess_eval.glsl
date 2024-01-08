@@ -2,6 +2,8 @@
 
 layout(triangles, equal_spacing, ccw) in;
 
+layout(location=0) out vec3 o_undeformedPos;
+
 uniform mat4 u_MVP;
 
 uniform vec3 u_localKelvinletCenter;
@@ -45,6 +47,9 @@ void main()
 	vec3 undefP2 = gl_in[2].gl_Position.xyz;
 	
 	vec3 undefP = undefP0 * gl_TessCoord.x + undefP1 * gl_TessCoord.y + undefP2 * gl_TessCoord.z;
+	
+	// pass the undeformed position to the fragment shader
+	o_undeformedPos = undefP;
 	
 	// finally, apply deformation and MVP matrix
 	vec3 defP = Deform(undefP);

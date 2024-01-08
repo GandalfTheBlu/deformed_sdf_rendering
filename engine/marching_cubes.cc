@@ -391,9 +391,23 @@ namespace Engine
 
         // add new positions and indices by using the triangulation index to find the edge index
         // duplicate edges are ignored by checking if its edge index is already included
+        size_t wrapCounter = 0;
         for (size_t i = 0; i < 16; i++)
         {
-            int edgeIndex = triangulationTable[triangulationIndex][i];
+            // to ensure counter clockwise winding order we swap the second and third vertices
+            size_t wrappedIndex = i;
+            wrapCounter++;
+            if (wrapCounter == 2)
+            {
+                wrappedIndex = i + 1;
+            }
+            else if (wrapCounter == 3)
+            {
+                wrapCounter = 0;
+                wrappedIndex = i - 1;
+            }
+
+            int edgeIndex = triangulationTable[triangulationIndex][wrappedIndex];
             
             if (edgeIndex == -1)
                 break;
