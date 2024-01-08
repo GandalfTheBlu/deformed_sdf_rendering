@@ -1,4 +1,5 @@
 #include "app.h"
+#include <glm.hpp>
 
 float Sdf(const glm::vec3& p)
 {
@@ -42,17 +43,23 @@ void App_SetupTest::UpdateLoop()
 
 	Kelvinlet kelv{
 		glm::vec3(0.5f, 0.f, 0.f), 
-		glm::vec3(2.5f, 0.f, 0.f), 
+		glm::vec3(2.f, 0.f, 0.f), 
 		1.f
 	};
 
+	float totalTime = 0.f;
+	float fixedDeltaTime = 1.f / 60.f;
+
 	while (!window.ShouldClose())
 	{
+		totalTime += fixedDeltaTime;
+
 		window.BeginUpdate();
 
 		glm::mat4 VP = camera.CalcP() * camera.CalcV(cameraTransform);
 
 		{
+			kelv.force.x = 1.f + 0.75f * glm::cos(totalTime);
 			glm::mat4 MVP = VP * glm::mat4(1.f);
 			glm::vec3 color(1.f, 0.5f, 0.5f);
 
