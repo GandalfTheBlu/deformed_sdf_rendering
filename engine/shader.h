@@ -19,7 +19,11 @@ namespace Engine
 		Shader();
 		~Shader();
 		
-		void Reload(const std::string& vertexFilePath, const std::string& fragmentFilePath);
+		bool Reload(
+			const std::string& vertexFilePath, 
+			const std::string& fragmentFilePath, 
+			const std::pair<std::string, std::string>& tesselationFilePaths = {"", ""}
+		);
 
 		void Use();
 		void StopUsing();

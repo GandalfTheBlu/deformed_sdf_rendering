@@ -2,7 +2,8 @@
 
 layout(location=0) in vec3 a_position;
 
-uniform mat4 u_MVP;
+layout(location=0) out vec3 o_deformedPos;
+
 uniform vec3 u_localKelvinletCenter;
 uniform vec3 u_localKelvinletForce;
 uniform float u_kelvinletRadius;
@@ -26,14 +27,19 @@ vec3 Kelvinlet(vec3 point, vec3 center, vec3 force, float radius)
     return displacement;
 }
 
-void main()
+vec3 Deform(vec3 pos)
 {
-	vec3 displacedPos = a_position + Kelvinlet(
-		a_position, 
+	return pos + Kelvinlet(
+		pos, 
 		u_localKelvinletCenter, 
 		u_localKelvinletForce, 
 		u_kelvinletRadius
 	);
+}
+
+void main()
+{
+	o_deformedPos = Deform(a_position);
 	
-	gl_Position = u_MVP * vec4(displacedPos, 1.);
+	gl_Position = vec4(a_position, 1.);
 }

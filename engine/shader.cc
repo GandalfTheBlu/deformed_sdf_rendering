@@ -32,74 +32,97 @@ namespace Engine
 		}
 	}
 
-	void Shader::Reload(const std::string& vertexFilePath, const std::string& fragmentFilePath)
+	bool TryLoadShader(const std::string& path, GLenum shaderType, GLuint& outShader)
 	{
-		std::string vertText;
-		std::string fragText;
-		ReadTextFile(vertexFilePath, vertText);
-		ReadTextFile(fragmentFilePath, fragText);
+		std::string shaderText;
+		ReadTextFile(path, shaderText);
+		const char* shaderText_C = shaderText.c_str();
 
-		const char* vertText_C = vertText.c_str();
-		const char* fragText_C = fragText.c_str();
-
-		// create and compile vertex shader
-		GLuint vertexShader = glCreateShader(GL_VERTEX_SHADER);
-		GLint vertexShaderLength = static_cast<GLint>(vertText.size());
-		glShaderSource(vertexShader, 1, &vertText_C, &vertexShaderLength);
-		glCompileShader(vertexShader);
+		GLuint shader = glCreateShader(shaderType);
+		GLint shaderLength = static_cast<GLint>(shaderText.size());
+		glShaderSource(shader, 1, &shaderText_C, &shaderLength);
+		glCompileShader(shader);
 
 		GLint shaderLogSize;
-		glGetShaderiv(vertexShader, GL_INFO_LOG_LENGTH, &shaderLogSize);
+		glGetShaderiv(shader, GL_INFO_LOG_LENGTH, &shaderLogSize);
 		if (shaderLogSize > 0)
 		{
 			std::unique_ptr<char[]> errorMessage(new char[shaderLogSize]);
-			glGetShaderInfoLog(vertexShader, shaderLogSize, NULL, errorMessage.get());
+			glGetShaderInfoLog(shader, shaderLogSize, NULL, errorMessage.get());
 			std::string errMsgStr;
 			FormatErrorLog(errorMessage.get(), errMsgStr);
-			std::cout << "[ERROR] failed to compile vertex shader '" << vertexFilePath << "': " << errMsgStr << std::endl;
-			return;
+			std::cout << "[ERROR] failed to compile shader '" << path << "': " << errMsgStr << std::endl;
+			return false;
 		}
 
-		// create and compile fragment shader
-		GLuint fragmentShader = glCreateShader(GL_FRAGMENT_SHADER);
-		GLint fragmentShaderLength = static_cast<GLint>(fragText.size());
-		glShaderSource(fragmentShader, 1, &fragText_C, &fragmentShaderLength);
-		glCompileShader(fragmentShader);
+		outShader = shader;
+		return true;
+	}
 
-		glGetShaderiv(fragmentShader, GL_INFO_LOG_LENGTH, &shaderLogSize);
-		if (shaderLogSize > 0)
+	struct TempShader
+	{
+		GLuint shader;
+
+		~TempShader()
 		{
-			std::unique_ptr<char[]> errorMessage(new char[shaderLogSize]);
-			glGetShaderInfoLog(fragmentShader, shaderLogSize, NULL, errorMessage.get());
-			std::string errMsgStr;
-			FormatErrorLog(errorMessage.get(), errMsgStr);
-			std::cout << "[ERROR] failed to compile fragment shader '" << fragmentFilePath << "': " << errMsgStr << std::endl;
-			return;
+			if (shader != 0)
+				glDeleteShader(shader);
+		}
+	};
+
+	bool Shader::Reload(
+		const std::string& vertexFilePath, 
+		const std::string& fragmentFilePath,
+		const std::pair<std::string, std::string>& tesselationFilePaths
+	)
+	{
+		// compile shaders
+		TempShader vertexShader = { 0 };
+		TempShader fragmentShader = { 0 };
+		TempShader tessControlShader = { 0 };
+		TempShader tessEvalShader = { 0 };
+		bool useTess = false;
+
+		if (!TryLoadShader(vertexFilePath, GL_VERTEX_SHADER, vertexShader.shader) ||
+			!TryLoadShader(fragmentFilePath, GL_FRAGMENT_SHADER, fragmentShader.shader)) 
+			return false;
+
+		if (tesselationFilePaths.first.size() > 0 && tesselationFilePaths.second.size() > 0)
+		{
+			if (!TryLoadShader(tesselationFilePaths.first, GL_TESS_CONTROL_SHADER, tessControlShader.shader) ||
+				!TryLoadShader(tesselationFilePaths.second, GL_TESS_EVALUATION_SHADER, tessEvalShader.shader))
+				return false;
+
+			useTess = true;
 		}
 
 		// create and link program
 		GLuint newProgram = glCreateProgram();
-		glAttachShader(newProgram, vertexShader);
-		glAttachShader(newProgram, fragmentShader);
+		glAttachShader(newProgram, vertexShader.shader);
+		glAttachShader(newProgram, fragmentShader.shader);
+		if (useTess)
+		{
+			glAttachShader(newProgram, tessControlShader.shader);
+			glAttachShader(newProgram, tessEvalShader.shader);
+		}
 		glLinkProgram(newProgram);
 
+		GLint shaderLogSize;
 		glGetProgramiv(newProgram, GL_INFO_LOG_LENGTH, &shaderLogSize);
 		if (shaderLogSize > 0)
 		{
 			std::unique_ptr<char[]> errorMessage(new char[shaderLogSize]);
 			glGetProgramInfoLog(newProgram, shaderLogSize, NULL, errorMessage.get());
 			std::cout << "[ERROR] failed to link program '" << vertexFilePath << "' & '" << fragmentFilePath << "': " << errorMessage.get() << std::endl;
-			return;
+			glDeleteProgram(newProgram);
+			return false;
 		}
-
-		// clean up
-		glDeleteShader(vertexShader);
-		glDeleteShader(fragmentShader);
 
 		if (program != 0)
 			Deinit();
 
 		program = newProgram;
+		return true;
 	}
 
 	void Shader::Deinit()
