@@ -3,30 +3,30 @@
 layout(location=0) in vec3 i_undeformedPos;
 
 out vec4 o_color;
+out float gl_FragDepth;
 
+uniform int u_debug;
 uniform vec3 u_color;
+uniform vec3 u_localCameraPos;
+uniform float u_pixelRadius;
+uniform mat4 u_MVP;
 uniform vec3 u_localKelvinletCenter;
 uniform vec3 u_localKelvinletForce;
-uniform float u_kelvinletRadius;
-uniform vec3 u_localCameraPos;
 
-vec3 Kelvinlet(vec3 point, vec3 center, vec3 force, float radius) 
+vec3 Kelvinlet(vec3 point, vec3 center, vec3 force) 
 {
 	vec3 toPoint = point - center;
-    float distanceSquared = dot(toPoint, toPoint);
-    float radiusSquared = radius * radius;
+	float dirCompare = dot(toPoint, force);
 	
-    if (distanceSquared > radiusSquared) 
+	if(dirCompare <= 0.)
 	{
-        return vec3(0.);
-    }
+		//return vec3(0.);
+	}
 	
-    vec3 displacement = (
-        3. * dot(toPoint, force) * (radiusSquared - distanceSquared) /
-        (4. * 3.14159 * distanceSquared * distanceSquared)
-    ) * toPoint;
-
-    return displacement;
+	float displacement = exp(-(dot(toPoint, toPoint) - 
+		dirCompare * dirCompare / dot(force, force)));
+		
+	return force * displacement;
 }
 
 vec3 Deform(vec3 pos)
@@ -34,12 +34,11 @@ vec3 Deform(vec3 pos)
 	return pos + Kelvinlet(
 		pos, 
 		u_localKelvinletCenter, 
-		u_localKelvinletForce, 
-		u_kelvinletRadius
+		u_localKelvinletForce
 	);
 }
 
-mat3 DeformationGradient(vec3 undefPoint)
+mat3 DeformationJacobian(vec3 undefPoint)
 {	
 	// calculate the gradients in the x-, y-, and z-planes using
 	// the central differance and construct the Jacobian matrix
@@ -53,17 +52,24 @@ mat3 DeformationGradient(vec3 undefPoint)
 	return mat3(gradientX, gradientY, gradientZ);
 }
 
-float Sdf(vec3 undefPoint)
+float SdBox(vec3 p, vec3 b)
 {
-	return length(undefPoint) - 1.;
+	vec3 q = abs(p) - b;
+	return length(max(q, 0.)) + min(max(q.x, max(q.y, q.z)), 0.);
 }
 
-vec3 NLST(vec3 undefOrigin, vec3 undefDirection, inout bool hit)
+float Sdf(vec3 p)
+{
+	return SdBox(p, vec3(1.));
+}
+
+vec3 NLST(vec3 undefOrigin, vec3 defDirection, float toOriginDistance, inout bool hit)
 {
 	// non-linear sphere tracing:
 	// perform ODE traversal inside each unbounding-sphere using the deformation jacobian
-	// as the ray direction
-	const float substep = 0.03;
+	// to transform the ray direction
+	const float substep = 0.1 / 32.;
+	float distTraveled = toOriginDistance;
 	vec3 undefPoint = undefOrigin;
 	hit = false;
 	
@@ -72,43 +78,92 @@ vec3 NLST(vec3 undefOrigin, vec3 undefDirection, inout bool hit)
 		vec3 sphereCenter = undefPoint;
 		float radius = Sdf(sphereCenter);
 		
-		if(radius < 0.01)
+		mat3 invJacobian = inverse(DeformationJacobian(undefPoint));
+		
+		float minRadius = u_pixelRadius * distTraveled * determinant(invJacobian);
+		distTraveled += radius;
+		
+		if(radius < minRadius)
 		{
 			hit = true;
 			break;
 		}
 		
-		for(int j=0; j<64; j++)
+		for(int j=0; j<32; j++)
 		{
-			vec3 invDefDirection = normalize(inverse(DeformationGradient(undefPoint)) * undefDirection);
-			undefPoint += invDefDirection * substep;
-			
+			vec3 undefDirection = normalize(invJacobian * defDirection);
+			undefPoint += undefDirection * substep;
+		
 			if(distance(undefPoint, sphereCenter) >= radius)
 			{
 				break;
 			}
+			
+			invJacobian = inverse(DeformationJacobian(undefPoint));
 		}
 	}
 	
 	return undefPoint;
 }
 
+vec3 DeformedSdfGradient(vec3 undefPoint)
+{
+	const float step = 0.0001;
+    const vec2 diff = vec2(1., -1.);
+    vec3 undefGradient = diff.xyy*Sdf(undefPoint + diff.xyy * step) + 
+					diff.yyx*Sdf(undefPoint + diff.yyx * step) + 
+					diff.yxy*Sdf(undefPoint + diff.yxy * step) + 
+					diff.xxx*Sdf(undefPoint + diff.xxx * step);
+					
+	mat3 invJacobian = inverse(DeformationJacobian(undefPoint));
+	return normalize(transpose(invJacobian) * undefGradient);
+}
+
+vec3 Shade(vec3 undefHitPoint, vec3 defDirection, vec3 lightDir)
+{
+	vec3 defNormal = DeformedSdfGradient(undefHitPoint);
+	float diff = max(0., dot(defNormal, -lightDir));
+	float spec = pow(max(0., dot(reflect(defDirection, defNormal), -lightDir)), 32.);
+	
+	vec3 ambientColor = vec3(0.1, 0.1, 0.2);
+	vec3 lightColor = vec3(1., 0.9, 0.7);
+	vec3 albedo = vec3(1.);
+	
+	return albedo * (ambientColor + lightColor * (diff + spec));
+}
+
+float DeformedPointToDepth(vec3 defPoint)
+{
+	vec4 clipPoint = u_MVP * vec4(defPoint, 1.);
+	return (clipPoint.z / clipPoint.w + 1.) * 0.5;
+}
+
 void main()
 {
-	vec3 undefOrigin = i_undeformedPos;
-	vec3 undefDirection = normalize(undefOrigin - u_localCameraPos);
-	
-	bool hit = false;
-	vec3 undefHitPoint = NLST(undefOrigin, undefDirection, hit);
-	
-	if(!hit)
+	if(u_debug == 0)
 	{
-		discard;
+		vec3 undefOrigin = i_undeformedPos;
+		vec3 defDirection = Deform(undefOrigin) - u_localCameraPos;
+		float toOriginDistance = length(defDirection);
+		defDirection *= 1. / toOriginDistance;
+		
+		bool hit = false;
+		vec3 undefHitPoint = NLST(undefOrigin, defDirection, toOriginDistance, hit);
+		
+		if(!hit)
+		{
+			discard;
+		}
+		
+		vec3 lightDir = normalize(vec3(-0.8, -1., 0.6));
+		vec3 color = Shade(undefHitPoint, defDirection, lightDir);
+		
+		o_color = vec4(color, 1.);
+		gl_FragDepth = DeformedPointToDepth(Deform(undefHitPoint));
 	}
-	
-	vec3 color = abs(cos(Deform(undefHitPoint) * 10.));
-	
-	//vec3 color = vec3(abs(undefOrigin.z));
-	
-	o_color = vec4(color, 1.);
+	else
+	{
+		o_color = vec4(0.25);
+		gl_FragDepth = DeformedPointToDepth(Deform(i_undeformedPos));
+	}
 }

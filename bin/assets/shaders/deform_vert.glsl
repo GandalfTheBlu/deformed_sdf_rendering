@@ -6,25 +6,21 @@ layout(location=0) out vec3 o_deformedPos;
 
 uniform vec3 u_localKelvinletCenter;
 uniform vec3 u_localKelvinletForce;
-uniform float u_kelvinletRadius;
 
-vec3 Kelvinlet(vec3 point, vec3 center, vec3 force, float radius) 
+vec3 Kelvinlet(vec3 point, vec3 center, vec3 force) 
 {
 	vec3 toPoint = point - center;
-    float distanceSquared = dot(toPoint, toPoint);
-    float radiusSquared = radius * radius;
+	float dirCompare = dot(toPoint, force);
 	
-    if (distanceSquared > radiusSquared) 
+	if(dirCompare <= 0.)
 	{
-        return vec3(0.);
-    }
+		//return vec3(0.);
+	}
 	
-    vec3 displacement = (
-        3. * dot(toPoint, force) * (radiusSquared - distanceSquared) /
-        (4. * 3.14159 * distanceSquared * distanceSquared)
-    ) * toPoint;
-
-    return displacement;
+	float displacement = exp(-(dot(toPoint, toPoint) - 
+		dirCompare * dirCompare / dot(force, force)));
+		
+	return force * displacement;
 }
 
 vec3 Deform(vec3 pos)
@@ -32,8 +28,7 @@ vec3 Deform(vec3 pos)
 	return pos + Kelvinlet(
 		pos, 
 		u_localKelvinletCenter, 
-		u_localKelvinletForce, 
-		u_kelvinletRadius
+		u_localKelvinletForce
 	);
 }
 

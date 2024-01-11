@@ -6,25 +6,21 @@ layout(location=0) in vec3 i_deformedPos[];
 
 uniform vec3 u_localKelvinletCenter;
 uniform vec3 u_localKelvinletForce;
-uniform float u_kelvinletRadius;
 
-vec3 Kelvinlet(vec3 point, vec3 center, vec3 force, float radius) 
+vec3 Kelvinlet(vec3 point, vec3 center, vec3 force) 
 {
 	vec3 toPoint = point - center;
-    float distanceSquared = dot(toPoint, toPoint);
-    float radiusSquared = radius * radius;
+	float dirCompare = dot(toPoint, force);
 	
-    if (distanceSquared > radiusSquared) 
+	if(dirCompare <= 0.)
 	{
-        return vec3(0.);
-    }
+		//return vec3(0.);
+	}
 	
-    vec3 displacement = (
-        3. * dot(toPoint, force) * (radiusSquared - distanceSquared) /
-        (4. * 3.14159 * distanceSquared * distanceSquared)
-    ) * toPoint;
-
-    return displacement;
+	float displacement = exp(-(dot(toPoint, toPoint) - 
+		dirCompare * dirCompare / dot(force, force)));
+		
+	return force * displacement;
 }
 
 vec3 Deform(vec3 pos)
@@ -32,8 +28,7 @@ vec3 Deform(vec3 pos)
 	return pos + Kelvinlet(
 		pos, 
 		u_localKelvinletCenter, 
-		u_localKelvinletForce, 
-		u_kelvinletRadius
+		u_localKelvinletForce
 	);
 }
 
@@ -72,18 +67,24 @@ void main()
 	float totalError = 0.;
 	float sampleCount = 0.;
 	
-	const int edgeSections = 3;
+	const int edgeSections = 5;
 	for(int i=0; i<=edgeSections; i++)
 	{
+		float u = float(i) / edgeSections;
+		vec3 undefEdgePoint0 = undefP0 + undefEdge0 * u;
+		vec3 undefEdgePoint1 = undefP1 + undefEdge1 * u;
+		vec3 undefFacePath = undefEdgePoint1 - undefEdgePoint0;
+		vec3 defEdgePoint0 = defP0 + defEdge0 * u;
+		vec3 defEdgePoint1 = defP1 + defEdge1 * u;
+		vec3 defFacePath = defEdgePoint1 - defEdgePoint0;
+		
 		for(int j=0; j<=edgeSections; j++)
 		{
-			float u = float(i) / edgeSections;
 			float v = float(j) / edgeSections;
+			vec3 undefFacePoint = undefEdgePoint0 + undefFacePath * v;
+			vec3 defFacePoint = defEdgePoint0 + defFacePath * v;
 			
-			vec3 defP = defP0 + defEdge0 * u + defEdge1 * v;
-			vec3 undefP = undefP0 + undefEdge0 * u + undefEdge1 * v;
-			
-			totalError += LinearizationError(undefP, defP);
+			totalError += LinearizationError(undefFacePoint, defFacePoint);
 			sampleCount++;
 		}
 	}
@@ -94,10 +95,10 @@ void main()
 	float tessLevel = 1.;
 	
 	const float errorThresholds[4] = float[](
-		0.05,
-		0.1,
-		0.15,
-		0.2
+		0.01,
+		0.02,
+		0.03,
+		0.04
 	);
 	
 	for(int i=0; i<4; i++)
@@ -112,8 +113,8 @@ void main()
 		}
 	}
 	
-	gl_TessLevelOuter[0] = 1.;
-	gl_TessLevelOuter[1] = 1.;
-	gl_TessLevelOuter[2] = 1.;
+	gl_TessLevelOuter[0] = tessLevel;
+	gl_TessLevelOuter[1] = tessLevel;
+	gl_TessLevelOuter[2] = tessLevel;
 	gl_TessLevelInner[0] = tessLevel;
 }
