@@ -334,7 +334,7 @@ namespace Engine
 
         static const glm::vec3 cellCornerOffsets[8]
         {
-            glm::vec3(0.f),
+            glm::vec3(0.f, 0.f, 0.f),
             glm::vec3(1.f, 0.f, 0.f),
             glm::vec3(1.f, 0.f, 1.f),
             glm::vec3(0.f, 0.f, 1.f),
@@ -452,7 +452,7 @@ namespace Engine
 	)
 	{
         MeshBuildData meshData;
-
+        
         for (float x = min.x; x <= max.x; x += cellSize)
         for (float y = min.y; y <= max.y; y += cellSize)
         for (float z = min.z; z <= max.z; z += cellSize)

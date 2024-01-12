@@ -12,9 +12,9 @@ vec3 Kelvinlet(vec3 point, vec3 center, vec3 force)
 	vec3 toPoint = point - center;
 	float dirCompare = dot(toPoint, force);
 	
-	if(dirCompare <= 0.)
+	if(dirCompare == 0.)
 	{
-		//return vec3(0.);
+		return vec3(0.);
 	}
 	
 	float displacement = exp(-(dot(toPoint, toPoint) - 

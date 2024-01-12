@@ -12,7 +12,9 @@ float SdBox(const glm::vec3& p, const glm::vec3& b)
 
 float Sdf(const glm::vec3& p)
 {
-	return SdBox(p, glm::vec3(1.f));
+	float box = SdBox(p, glm::vec3(1.f)) - 0.1;
+	float sphere = glm::length(p) - 1.4f;
+	return glm::min(box, sphere);
 }
 
 App_SetupTest::App_SetupTest()
@@ -27,8 +29,8 @@ void App_SetupTest::Init()
 	Engine::TriangulateScalarField(
 		mesh, 
 		Sdf, 
-		glm::vec3(-2.f), 
-		glm::vec3(2.f), 
+		glm::vec3(-2.2f), 
+		glm::vec3(2.2f), 
 		0.4f, 
 		glm::length(glm::vec3(0.4f))
 	);
@@ -73,6 +75,8 @@ void App_SetupTest::UpdateLoop()
 	};
 
 	float pixelRadius = glm::length(glm::vec2(2.f / window.Width(), 2.f / window.Height()));
+
+	bool showDebugMesh = false;
 
 	float totalTime = 0.f;
 	float fixedDeltaTime = 1.f / 60.f;
@@ -123,7 +127,7 @@ void App_SetupTest::UpdateLoop()
 
 			glm::vec3 move = cameraTransform[0] * axis.x + cameraTransform[2] * axis.z + glm::vec4(0.f, axis.y, 0.f, 0.f);
 
-			if (mouse.leftButton.IsDown())
+			if (mouse.rightButton.IsDown())
 			{
 				cameraYaw += (float)mouse.movement.dx * sensitivity * fixedDeltaTime;
 				cameraPitch += (float)mouse.movement.dy * sensitivity * fixedDeltaTime;
@@ -142,16 +146,17 @@ void App_SetupTest::UpdateLoop()
 		glm::mat4 VP = camera.CalcP() * camera.CalcV(cameraTransform);
 
 		{
-			kelv.force.x = 3.6f * glm::sin(totalTime * 0.1f);
 			glm::mat4 M(1.f);
+			M = glm::rotate(M, totalTime * 0.2f, glm::vec3(0.f, 1.f, 0.f));
+			glm::mat4 invM = glm::inverse(M);
+			glm::mat3 N = glm::transpose(invM);
 			glm::mat4 MVP = VP * M;
-			glm::vec3 color(1.f, 0.5f, 0.5f);
-			glm::vec3 localCamPos = cameraTransform[3] - M[3];
+			glm::vec3 localCamPos = invM * cameraTransform[3];
 
 			shader.Use();
 			shader.SetInt("u_debug", 0);
+			shader.SetMat3("u_N", &N[0][0]);
 			shader.SetMat4("u_MVP", &MVP[0][0]);
-			shader.SetVec3("u_color", &color[0]);
 			shader.SetVec3("u_localCameraPos", &localCamPos[0]);
 			shader.SetFloat("u_pixelRadius", pixelRadius);
 			shader.SetVec3("u_localKelvinletCenter", &kelv.center[0]);
@@ -159,13 +164,29 @@ void App_SetupTest::UpdateLoop()
 			mesh.Bind();
 			mesh.Draw(0);
 
-			shader.SetInt("u_debug", 1);
-			glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-			mesh.Draw(0);
-			glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+			if (showDebugMesh)
+			{
+				shader.SetInt("u_debug", 1);
+				glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+				mesh.Draw(0);
+				glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+			}
 
 			mesh.Unbind();
 			shader.StopUsing();
+		}
+
+		{
+			ImGui::Begin("Deformation");
+
+			if (ImGui::RadioButton("Show mesh", showDebugMesh))
+			{
+				showDebugMesh = !showDebugMesh;
+			}
+			ImGui::DragFloat3("Center", &kelv.center.x, 0.1f, -10.f, 10.f, "%.1f", 1.f);
+			ImGui::DragFloat3("Force", &kelv.force.x, 0.1f, -10.f, 10.f, "%.1f", 1.f);
+
+			ImGui::End();
 		}
 
 		window.EndUpdate();

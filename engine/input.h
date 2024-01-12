@@ -9,7 +9,7 @@ namespace Engine
 	{
 	private:
 		friend class Input;
-		friend class Mouse;
+		friend struct Mouse;
 
 		enum class KeyStatus : char
 		{

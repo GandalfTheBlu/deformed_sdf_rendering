@@ -6,10 +6,10 @@ out vec4 o_color;
 out float gl_FragDepth;
 
 uniform int u_debug;
-uniform vec3 u_color;
+uniform mat3 u_N;
+uniform mat4 u_MVP;
 uniform vec3 u_localCameraPos;
 uniform float u_pixelRadius;
-uniform mat4 u_MVP;
 uniform vec3 u_localKelvinletCenter;
 uniform vec3 u_localKelvinletForce;
 
@@ -18,9 +18,9 @@ vec3 Kelvinlet(vec3 point, vec3 center, vec3 force)
 	vec3 toPoint = point - center;
 	float dirCompare = dot(toPoint, force);
 	
-	if(dirCompare <= 0.)
+	if(dirCompare == 0.)
 	{
-		//return vec3(0.);
+		return vec3(0.);
 	}
 	
 	float displacement = exp(-(dot(toPoint, toPoint) - 
@@ -52,6 +52,61 @@ mat3 DeformationJacobian(vec3 undefPoint)
 	return mat3(gradientX, gradientY, gradientZ);
 }
 
+vec3 UndeformedDirection(vec3 undefPoint, vec3 defDirection)
+{
+	mat3 invJacobian = inverse(DeformationJacobian(undefPoint));
+	return normalize(invJacobian * defDirection);
+}
+
+vec3 SolveBS23(vec3 undefPoint, vec3 defDirection, vec3 startUndefDirection, float stepLength, float maxRadius)
+{
+	// Bogacki-Shampine ode solver that returns the next undeformed point along the 
+	// deformed ray path
+	
+	vec3 y1 = undefPoint;
+	vec3 k1 = startUndefDirection;
+	
+	for(int i=0; i<16; i++)
+	{
+		vec3 k2 = UndeformedDirection(y1 + (0.5 * stepLength) * k1, defDirection);
+		vec3 k3 = UndeformedDirection(y1 + (0.75 * stepLength) * k2, defDirection);
+		vec3 y2 = y1 + stepLength * ((2. / 9.) * k1 + (1. / 3.) * k2 + (4. / 9.) * k3);
+		vec3 k4 = UndeformedDirection(y2, defDirection);
+		
+		y1 += stepLength * ((7. / 24) * k1 + 0.25 * k2 + (1. / 3.) * k3 + (1. / 8.) * k4);
+		k1 = k4;
+		
+		if(distance(y1, undefPoint) >= maxRadius)
+		{
+			break;
+		}
+	}
+	
+	return y1;
+}
+
+vec3 SolveEuler(vec3 undefPoint, vec3 defDirection, vec3 startUndefDirection, float stepLength, float maxRadius)
+{
+	// Euler integration for stepping along the deformed ray path when the surface offset is small
+	
+	vec3 y = undefPoint;
+	vec3 k = startUndefDirection;
+	
+	for(int i=0; i<16; i++)
+	{
+		y += k * stepLength;
+		
+		if(distance(y, undefPoint) >= maxRadius)
+		{
+			break;
+		}
+		
+		k = UndeformedDirection(y, defDirection);
+	}
+	
+	return y;
+}
+
 float SdBox(vec3 p, vec3 b)
 {
 	vec3 q = abs(p) - b;
@@ -60,7 +115,9 @@ float SdBox(vec3 p, vec3 b)
 
 float Sdf(vec3 p)
 {
-	return SdBox(p, vec3(1.));
+	float box = SdBox(p, vec3(1.)) - 0.1;
+	float sphere = length(p) - 1.4;
+	return min(box, sphere);
 }
 
 vec3 NLST(vec3 undefOrigin, vec3 defDirection, float toOriginDistance, inout bool hit)
@@ -68,7 +125,7 @@ vec3 NLST(vec3 undefOrigin, vec3 defDirection, float toOriginDistance, inout boo
 	// non-linear sphere tracing:
 	// perform ODE traversal inside each unbounding-sphere using the deformation jacobian
 	// to transform the ray direction
-	const float substep = 0.1 / 32.;
+	const float integrationStepLength = 0.2 / 16.;
 	float distTraveled = toOriginDistance;
 	vec3 undefPoint = undefOrigin;
 	hit = false;
@@ -89,24 +146,22 @@ vec3 NLST(vec3 undefOrigin, vec3 defDirection, float toOriginDistance, inout boo
 			break;
 		}
 		
-		for(int j=0; j<32; j++)
-		{
-			vec3 undefDirection = normalize(invJacobian * defDirection);
-			undefPoint += undefDirection * substep;
+		vec3 undefDirection = normalize(invJacobian * defDirection);
 		
-			if(distance(undefPoint, sphereCenter) >= radius)
-			{
-				break;
-			}
-			
-			invJacobian = inverse(DeformationJacobian(undefPoint));
+		if(radius < minRadius * 3.)
+		{
+			undefPoint = SolveEuler(undefPoint, defDirection, undefDirection, integrationStepLength, radius);
+		}
+		else
+		{
+			undefPoint = SolveBS23(undefPoint, defDirection, undefDirection, integrationStepLength, radius);
 		}
 	}
 	
 	return undefPoint;
 }
 
-vec3 DeformedSdfGradient(vec3 undefPoint)
+vec3 WorldSdfGradient(vec3 undefPoint)
 {
 	const float step = 0.0001;
     const vec2 diff = vec2(1., -1.);
@@ -116,14 +171,16 @@ vec3 DeformedSdfGradient(vec3 undefPoint)
 					diff.xxx*Sdf(undefPoint + diff.xxx * step);
 					
 	mat3 invJacobian = inverse(DeformationJacobian(undefPoint));
-	return normalize(transpose(invJacobian) * undefGradient);
+	vec3 defGradient = transpose(invJacobian) * undefGradient;
+	return normalize(u_N * defGradient);
 }
 
 vec3 Shade(vec3 undefHitPoint, vec3 defDirection, vec3 lightDir)
 {
-	vec3 defNormal = DeformedSdfGradient(undefHitPoint);
-	float diff = max(0., dot(defNormal, -lightDir));
-	float spec = pow(max(0., dot(reflect(defDirection, defNormal), -lightDir)), 32.);
+	vec3 worldNormal = WorldSdfGradient(undefHitPoint);
+	vec3 worldDirection = normalize(u_N * defDirection);
+	float diff = max(0., dot(worldNormal, -lightDir));
+	float spec = pow(max(0., dot(reflect(worldDirection, worldNormal), -lightDir)), 32.);
 	
 	vec3 ambientColor = vec3(0.1, 0.1, 0.2);
 	vec3 lightColor = vec3(1., 0.9, 0.7);
