@@ -10,40 +10,161 @@ namespace Engine
         std::vector<glm::vec3> positions;
     };
 
+    struct PointGrid
+    {
+        std::vector<float> grid;
+        size_t sizeX;
+        size_t sizeY;
+        size_t sizeZ;
+        size_t indexOffsets[8];
+    };
+
+    struct CellData
+    {
+        GLushort edgeBitMask;
+        GLuint edgeToIndex[12];
+    };
+
+    struct CellGrid
+    {
+        std::vector<CellData> grid;
+        size_t sizeX;
+        size_t sizeY;
+        size_t sizeZ;
+        int bottomNeighborOffset;
+        int backNeighborOffset;
+        int leftNeighborOffset;
+    };
+
+    void InitCellData(CellData& cell)
+    {
+        cell.edgeBitMask = 0;
+        for (size_t i = 0; i < 12; i++)
+            cell.edgeToIndex[i] = 0;
+    }
+
+    bool CellHasPointOnEdge(const CellData& cell, size_t edgeIndex)
+    {
+        return cell.edgeBitMask & (static_cast<GLushort>(1) << edgeIndex);
+    }
+
+    void SetIndexOfCellEdge(CellData& cell, size_t edgeIndex, GLuint index)
+    {
+        cell.edgeToIndex[edgeIndex] = index;
+        cell.edgeBitMask |= (static_cast<GLushort>(1) << edgeIndex);
+    }
+
+    void InitPointGrid(
+        PointGrid& pointGrid,
+        ScalarField_t field,
+        const glm::vec3& min,
+        const glm::vec3& max,
+        float cellSize
+    )
+    {
+        assert(cellSize > 0.f &&
+            max.x > cellSize + min.x &&
+            max.y > cellSize + min.y &&
+            max.z > cellSize + min.z
+        );
+
+        size_t sizeX = pointGrid.sizeX = static_cast<size_t>((max.x - min.x) / cellSize) + 1;
+        size_t sizeY = pointGrid.sizeY = static_cast<size_t>((max.y - min.y) / cellSize) + 1;
+        size_t sizeZ = pointGrid.sizeZ = static_cast<size_t>((max.z - min.z) / cellSize) + 1;
+
+        // bottom
+        pointGrid.indexOffsets[0] = 0;
+        pointGrid.indexOffsets[1] = sizeY * sizeZ;
+        pointGrid.indexOffsets[2] = sizeY * sizeZ + 1;
+        pointGrid.indexOffsets[3] = 1;
+        // top
+        pointGrid.indexOffsets[4] = sizeZ;
+        pointGrid.indexOffsets[5] = sizeY * sizeZ + sizeZ;
+        pointGrid.indexOffsets[6] = sizeY * sizeZ + sizeZ + 1;
+        pointGrid.indexOffsets[7] = sizeZ + 1;
+
+        pointGrid.grid.reserve(sizeX * sizeY * sizeZ);
+
+        for (size_t x = 0; x < sizeX; x++)
+            for (size_t y = 0; y < sizeY; y++)
+                for (size_t z = 0; z < sizeZ; z++)
+                    pointGrid.grid.push_back(field(min + glm::vec3(x, y, z) * cellSize));
+    }
+
+    float GetCornerValue(
+        const PointGrid& pointGrid,
+        size_t cellX,
+        size_t cellY,
+        size_t cellZ,
+        size_t cornerIndex
+    )
+    {
+        size_t cellZeroIndex = cellX * pointGrid.sizeY * pointGrid.sizeZ + cellY * pointGrid.sizeZ + cellZ;
+        return pointGrid.grid[cellZeroIndex + pointGrid.indexOffsets[cornerIndex]];
+    }
+
+    void InitCellGrid(
+        CellGrid& cellGrid,
+        size_t sizeX,
+        size_t sizeY,
+        size_t sizeZ
+    )
+    {
+        cellGrid.sizeX = sizeX;
+        cellGrid.sizeY = sizeY;
+        cellGrid.sizeZ = sizeZ;
+
+        cellGrid.bottomNeighborOffset = -static_cast<int>(sizeZ);
+        cellGrid.backNeighborOffset = -1;
+        cellGrid.leftNeighborOffset = -static_cast<int>(sizeY * sizeZ);
+
+        cellGrid.grid.resize(sizeX * sizeY * sizeZ);
+
+        for (CellData& cell : cellGrid.grid)
+            InitCellData(cell);
+    }
+
     glm::vec3 InterpolateVertex(
-        size_t edgeIndex, 
-        float cornerFieldValues[8], 
+        const PointGrid& pointGrid,
+        size_t cellX,
+        size_t cellY,
+        size_t cellZ,
+        size_t edgeIndex,
         float surfaceOffset
     )
     {
-        static const glm::vec3 edgeIndexToEdge[12][2]
+        static const glm::vec3 edges[12][2]
         {
+            // bottom
             { glm::vec3(0.f, 0.f, 0.f), glm::vec3(1.f, 0.f, 0.f) },
             { glm::vec3(1.f, 0.f, 0.f), glm::vec3(1.f, 0.f, 1.f) },
             { glm::vec3(1.f, 0.f, 1.f), glm::vec3(0.f, 0.f, 1.f) },
             { glm::vec3(0.f, 0.f, 1.f), glm::vec3(0.f, 0.f, 0.f) },
+            // top
             { glm::vec3(0.f, 1.f, 0.f), glm::vec3(1.f, 1.f, 0.f) },
             { glm::vec3(1.f, 1.f, 0.f), glm::vec3(1.f, 1.f, 1.f) },
             { glm::vec3(1.f, 1.f, 1.f), glm::vec3(0.f, 1.f, 1.f) },
             { glm::vec3(0.f, 1.f, 1.f), glm::vec3(0.f, 1.f, 0.f) },
+            // vertical
             { glm::vec3(0.f, 0.f, 0.f), glm::vec3(0.f, 1.f, 0.f) },
             { glm::vec3(1.f, 0.f, 0.f), glm::vec3(1.f, 1.f, 0.f) },
             { glm::vec3(1.f, 0.f, 1.f), glm::vec3(1.f, 1.f, 1.f) },
             { glm::vec3(0.f, 0.f, 1.f), glm::vec3(0.f, 1.f, 1.f) }
         };
 
-        static const size_t edgeIndexToCornerIndex[12][2]
+        static const size_t edgeToCornerIndex[12][2]
         {
+            // bottom
             {0,1},
             {1,2},
             {2,3},
             {3,0},
-
+            // top
             {4,5},
             {5,6},
             {6,7},
             {7,4},
-
+            // vertical
             {0,4},
             {1,5},
             {2,6},
@@ -51,11 +172,11 @@ namespace Engine
         };
 
         // extract corner positions and values for edge
-        glm::vec3 cornerPos1 = edgeIndexToEdge[edgeIndex][0];
-        glm::vec3 cornerPos2 = edgeIndexToEdge[edgeIndex][1];
+        glm::vec3 cornerPos1 = edges[edgeIndex][0];
+        glm::vec3 cornerPos2 = edges[edgeIndex][1];
 
-        float cornerVal1 = cornerFieldValues[edgeIndexToCornerIndex[edgeIndex][0]];
-        float cornerVal2 = cornerFieldValues[edgeIndexToCornerIndex[edgeIndex][1]];
+        float cornerVal1 = GetCornerValue(pointGrid, cellX, cellY, cellZ, edgeToCornerIndex[edgeIndex][0]);
+        float cornerVal2 = GetCornerValue(pointGrid, cellX, cellY, cellZ, edgeToCornerIndex[edgeIndex][1]);
 
         // linearly interpolate between positions based on values
         float valueDiff = glm::abs(cornerVal2 - cornerVal1);
@@ -64,12 +185,85 @@ namespace Engine
             cornerPos2 * glm::abs(surfaceOffset - cornerVal1) / valueDiff;
     }
 
+    bool TryGetNeighborEdge(
+        const CellGrid& cellGrid, 
+        size_t cellX, 
+        size_t cellY, 
+        size_t cellZ, 
+        size_t cellZeroIndex,
+        size_t edgeIndex,
+        GLuint& outIndex
+    )
+    {
+        size_t neighborEdgeIndex = 0;
+        int neighborIndexOffset = 0;
+
+        switch (edgeIndex)
+        {
+            // bottom
+        case 0:
+            neighborEdgeIndex = 4;
+            neighborIndexOffset = cellGrid.bottomNeighborOffset;
+            break;
+        case 1:
+            neighborEdgeIndex = 5;
+            neighborIndexOffset = cellGrid.bottomNeighborOffset;
+            break;
+        case 2:
+            neighborEdgeIndex = 6;
+            neighborIndexOffset = cellGrid.bottomNeighborOffset;
+            break;
+        case 3:
+            neighborEdgeIndex = 7;
+            neighborIndexOffset = cellGrid.bottomNeighborOffset;
+            break;
+            // back
+        case 4:
+            neighborEdgeIndex = 6;
+            neighborIndexOffset = cellGrid.backNeighborOffset;
+            break;
+        case 8:
+            neighborEdgeIndex = 11;
+            neighborIndexOffset = cellGrid.backNeighborOffset;
+            break;
+        case 9:
+            neighborEdgeIndex = 10;
+            neighborIndexOffset = cellGrid.backNeighborOffset;
+            break;
+            // left
+        case 11:
+            neighborEdgeIndex = 10;
+            neighborIndexOffset = cellGrid.leftNeighborOffset;
+            break;
+        case 7:
+            neighborEdgeIndex = 5;
+            neighborIndexOffset = cellGrid.leftNeighborOffset;
+            break;
+        }
+
+        if ((neighborIndexOffset == cellGrid.bottomNeighborOffset && cellY > 0) ||
+            (neighborIndexOffset == cellGrid.backNeighborOffset && cellZ > 0) ||
+            (neighborIndexOffset == cellGrid.leftNeighborOffset && cellX > 0))
+        {
+            const CellData& neighbor = cellGrid.grid[cellZeroIndex + neighborIndexOffset];
+            outIndex = neighbor.edgeToIndex[neighborEdgeIndex];
+            return true;
+        }
+
+        return false;
+    }
+
     void TriangulateCell(
         MeshBuildData& meshData, 
-        ScalarField_t field, 
-        const glm::vec3& cellCorner, 
+        CellGrid& cellGrid,
+        size_t cellX,
+        size_t cellY,
+        size_t cellZ,
+        const PointGrid& pointGrid, 
+        const glm::vec3& min, 
         float cellSize, 
-        float surfaceOffset
+        float surfaceOffset,
+        ScalarField_t field
     )
     {
         static const int triangulationTable[256][16]
@@ -332,29 +526,8 @@ namespace Engine
             {-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1}
         };
 
-        static const glm::vec3 cellCornerOffsets[8]
-        {
-            glm::vec3(0.f, 0.f, 0.f),
-            glm::vec3(1.f, 0.f, 0.f),
-            glm::vec3(1.f, 0.f, 1.f),
-            glm::vec3(0.f, 0.f, 1.f),
-
-            glm::vec3(0.f, 1.f, 0.f),
-            glm::vec3(1.f, 1.f, 0.f),
-            glm::vec3(1.f, 1.f, 1.f),
-            glm::vec3(0.f, 1.f, 1.f)
-        };
-
-        // store the scalar field values that are evaluated in the corners of the cell
-        // they will be used later when interpolating the vertex
-        float cornerFieldValues[8]
-        {
-            0.f, 0.f, 0.f, 0.f,
-            0.f, 0.f, 0.f, 0.f
-        };
-
         // store new indices and positions to efficiently find duplicates before adding to the mesh
-        size_t newIndices[12]
+        GLuint newIndices[12]
         {
             0, 0, 0, 0,
             0, 0, 0, 0,
@@ -369,28 +542,25 @@ namespace Engine
             glm::vec3(0.f), glm::vec3(0.f), glm::vec3(0.f)
         };
 
-        // whenever we add a new position, we also store its edge index
-        size_t indexToEdgeIndex[12]
-        {
-            0, 0, 0, 0,
-            0, 0, 0, 0,
-            0, 0, 0, 0
-        };
-
+        size_t indexOffset = meshData.positions.size();
         size_t indicesCount = 0;
         size_t positionsCount = 0;
         size_t triangulationIndex = 0;
+        glm::vec3 cellZeroPos = min + cellSize * glm::vec3(cellX, cellY, cellZ);
+        size_t cellZeroIndex = cellX * cellGrid.sizeY * cellGrid.sizeZ + cellY * cellGrid.sizeZ + cellZ;
+        CellData& cell = cellGrid.grid[cellZeroIndex];
 
-        // evaluate scalar field and check which edges cut through the surface
+        // evaluate point grid and check which edges cut through the surface
         // a unique triangulation index is generated for each possible combination
         for (size_t i = 0; i < 8; i++)
         {
-            if ((cornerFieldValues[i] = field(cellCorner + cellCornerOffsets[i] * cellSize)) < surfaceOffset)
+            if (GetCornerValue(pointGrid, cellX, cellY, cellZ, i) < surfaceOffset)
                 triangulationIndex |= static_cast<size_t>(1) << i;
         }
 
         // add new positions and indices by using the triangulation index to find the edge index
-        // duplicate edges are ignored by checking if its edge index is already included
+        // duplicate positions are ignored by checking if its edge is already included in the cell
+        // indices of edges that contact previously processed cells are reused
         size_t wrapCounter = 0;
         for (size_t i = 0; i < 16; i++)
         {
@@ -407,36 +577,45 @@ namespace Engine
                 wrappedIndex = i - 1;
             }
 
-            int edgeIndex = triangulationTable[triangulationIndex][wrappedIndex];
-            
-            if (edgeIndex == -1)
+            int iEdgeIndex = triangulationTable[triangulationIndex][wrappedIndex];
+            if (iEdgeIndex == -1)
                 break;
 
-            bool duplicate = false;
-            for (size_t j = 0; j < positionsCount; j++)
+            size_t edgeIndex = static_cast<size_t>(iEdgeIndex);
+            bool duplicate = CellHasPointOnEdge(cell, edgeIndex);
+
+            if (duplicate)
             {
-                if (static_cast<size_t>(edgeIndex) == indexToEdgeIndex[j])
+                newIndices[indicesCount++] = cell.edgeToIndex[edgeIndex];
+            }
+            // check neighbors
+            else
+            {
+                GLuint reusedIndex = 0;
+                if(TryGetNeighborEdge(cellGrid, cellX, cellY, cellZ, cellZeroIndex, edgeIndex, reusedIndex))
                 {
+                    newIndices[indicesCount++] = reusedIndex;
+                    SetIndexOfCellEdge(cell, edgeIndex, reusedIndex);
                     duplicate = true;
-                    newIndices[indicesCount++] = j;
-                    break;
                 }
             }
 
+            // new position
             if (!duplicate)
             {
-                glm::vec3 position = InterpolateVertex(edgeIndex, cornerFieldValues, surfaceOffset);
-                position = position * cellSize + cellCorner;
+                glm::vec3 position = InterpolateVertex(pointGrid, cellX, cellY, cellZ, edgeIndex, surfaceOffset);
+                position = position * cellSize + cellZeroPos;
 
-                newIndices[indicesCount++] = positionsCount;
-                newPositions[positionsCount] = position;
-                indexToEdgeIndex[positionsCount++] = static_cast<size_t>(edgeIndex);
+                GLuint newIndex = newIndices[indicesCount++] = static_cast<GLuint>(indexOffset + positionsCount);
+                newPositions[positionsCount++] = position;
+
+                SetIndexOfCellEdge(cell, edgeIndex, newIndex);
             }
         }
 
-        // add new new indices and positions to the mesh, add the existing index offset the the new indices
+        // add new indices and positions to the mesh
         for (size_t i = 0; i < indicesCount; i++)
-            meshData.indices.push_back(static_cast<GLuint>(meshData.positions.size() + newIndices[i]));
+            meshData.indices.push_back(newIndices[i]);
         
         for (size_t i = 0; i < positionsCount; i++)
             meshData.positions.push_back(newPositions[i]);
@@ -452,11 +631,16 @@ namespace Engine
 	)
 	{
         MeshBuildData meshData;
+        PointGrid pointGrid;
+        CellGrid cellGrid;
         
-        for (float x = min.x; x <= max.x; x += cellSize)
-        for (float y = min.y; y <= max.y; y += cellSize)
-        for (float z = min.z; z <= max.z; z += cellSize)
-            TriangulateCell(meshData, field, glm::vec3(x, y, z), cellSize, surfaceOffset);
+        InitPointGrid(pointGrid, field, min, max, cellSize);
+        InitCellGrid(cellGrid, pointGrid.sizeX - 1, pointGrid.sizeY - 1, pointGrid.sizeZ - 1);
+
+        for (size_t x=0; x<cellGrid.sizeX; x++)
+        for (size_t y=0; y<cellGrid.sizeY; y++)
+        for (size_t z=0; z<cellGrid.sizeZ; z++)
+            TriangulateCell(meshData, cellGrid, x, y, z, pointGrid, min, cellSize, surfaceOffset, field);
 
         DataBuffer indexBuffer;
         indexBuffer.bufferStart = (GLubyte*)meshData.indices.data();
