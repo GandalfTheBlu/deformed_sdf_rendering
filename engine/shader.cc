@@ -23,6 +23,7 @@ namespace Engine
 		std::regex formatRgx("\\n(?:[0-9]+\\(([0-9]+)\\)\\s)(.+)");
 		std::smatch formatMatch;
 		std::string::const_iterator strStart(str.cbegin());
+
 		while (std::regex_search(strStart, str.cend(), formatMatch, formatRgx))
 		{
 			std::string lineNumStr = formatMatch[1];
@@ -32,10 +33,33 @@ namespace Engine
 		}
 	}
 
+	void PreprocessShaderCode(const std::string& shaderCode, std::string& outShaderCode)
+	{
+		std::regex includeRgx("#include\\s\"([\\S\\s]+?)\"");
+		std::smatch includeMatch;
+		std::string::const_iterator strStart(shaderCode.cbegin());
+
+		while (std::regex_search(strStart, shaderCode.cend(), includeMatch, includeRgx))
+		{
+			std::string includePath = includeMatch[1];
+			std::string includeCode;
+			ReadTextFile(includePath, includeCode);
+			outShaderCode += includeMatch.prefix();
+			outShaderCode += includeCode;
+			strStart = includeMatch.suffix().first;
+		}
+
+		if (outShaderCode.size() == 0)
+			outShaderCode = shaderCode;
+		else
+			outShaderCode += includeMatch.suffix();
+	}
+
 	bool TryLoadShader(const std::string& path, GLenum shaderType, GLuint& outShader)
 	{
-		std::string shaderText;
-		ReadTextFile(path, shaderText);
+		std::string rawShaderText, shaderText;
+		ReadTextFile(path, rawShaderText);
+		PreprocessShaderCode(rawShaderText, shaderText);
 		const char* shaderText_C = shaderText.c_str();
 
 		GLuint shader = glCreateShader(shaderType);

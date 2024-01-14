@@ -1,36 +1,9 @@
 #version 430
+#include "assets/shaders/deformation.glsl"
 
 layout(vertices=3) out;
 
 layout(location=0) in vec3 i_deformedPos[];
-
-uniform vec3 u_localKelvinletCenter;
-uniform vec3 u_localKelvinletForce;
-
-vec3 Kelvinlet(vec3 point, vec3 center, vec3 force) 
-{
-	vec3 toPoint = point - center;
-	float dirCompare = dot(toPoint, force);
-	
-	if(dirCompare == 0.)
-	{
-		return vec3(0.);
-	}
-	
-	float displacement = exp(-(dot(toPoint, toPoint) - 
-		dirCompare * dirCompare / dot(force, force)));
-		
-	return force * displacement;
-}
-
-vec3 Deform(vec3 pos)
-{
-	return pos + Kelvinlet(
-		pos, 
-		u_localKelvinletCenter, 
-		u_localKelvinletForce
-	);
-}
 
 float LinearizationError(vec3 undeformedPos, vec3 deformedPos)
 {

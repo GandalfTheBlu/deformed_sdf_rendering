@@ -4,17 +4,57 @@
 #include "file_watcher.h"
 #include "input.h"
 
-float SdBox(const glm::vec3& p, const glm::vec3& b)
+glm::vec3 Fold(const glm::vec3& p, const glm::vec3& normal)
 {
-	glm::vec3 q = glm::abs(p) - b;
-	return glm::length(glm::max(q, 0.f)) + glm::min(glm::max(q.x, glm::max(q.y, q.z)), 0.f);
+	return p - 2.f * glm::min(0.f, glm::dot(p, normal)) * normal;
+}
+
+glm::vec3 RotX(const glm::vec3& p, float angle)
+{
+	float startAngle = glm::atan(p.y, p.z);
+	float radius = glm::length(glm::vec2(p.y, p.z));
+	return glm::vec3(p.x, radius * glm::sin(startAngle + angle), radius * glm::cos(startAngle + angle));
+}
+
+float Capsule(const glm::vec3& p, const glm::vec3& a, const glm::vec3& b, float radius)
+{
+	glm::vec3 pa = p - a;
+	glm::vec3 ba = b - a;
+	float h = glm::clamp(glm::dot(pa, ba) / glm::dot(ba, ba), 0.f, 1.f);
+	return glm::length(pa - ba * h) - radius;
+}
+
+float Tree(glm::vec3 p)
+{
+	glm::vec2 dim = glm::vec2(1.f, 8.f);
+	float d = Capsule(p, glm::vec3(0.f, -1.f, 0.f), glm::vec3(0.f, 1.f + dim.y, 0.f), dim.x);
+	glm::vec3 scale = glm::vec3(1.f);
+	glm::vec3 change = glm::vec3(0.7f, 0.68f, 0.7f);
+
+	const glm::vec3 n1 = normalize(glm::vec3(1.f, 0.f, 1.f));
+	const glm::vec3 n2 = glm::vec3(n1.x, 0.f, -n1.z);
+	const glm::vec3 n3 = glm::vec3(-n1.x, 0.f, n1.z);
+
+	for (int i = 0; i < 7; i++)
+	{
+		p = Fold(p, n1);
+		p = Fold(p, n2);
+		p = Fold(p, n3);
+
+		p.y -= scale.y * dim.y;
+		p.z = abs(p.z);
+		p = RotX(p, 3.1415f * 0.25f);
+		scale *= change;
+
+		d = glm::min(d, Capsule(p, glm::vec3(0.f), glm::vec3(0.f, dim.y * scale.y, 0.), scale.x * dim.x));
+	}
+
+	return d;
 }
 
 float Sdf(const glm::vec3& p)
 {
-	float box = SdBox(p, glm::vec3(1.f)) - 0.1;
-	float sphere = glm::length(p) - 1.4f;
-	return glm::min(box, sphere);
+	return Tree(p * 5.f) / 5.f;
 }
 
 App_SetupTest::App_SetupTest()
@@ -29,10 +69,10 @@ void App_SetupTest::Init()
 	Engine::TriangulateScalarField(
 		mesh, 
 		Sdf, 
-		glm::vec3(-2.2f), 
-		glm::vec3(2.2f), 
-		0.4f, 
-		glm::length(glm::vec3(0.4f))
+		glm::vec3(-6.f), 
+		glm::vec3(6.f), 
+		0.5f, 
+		glm::length(glm::vec3(0.5f))
 	);
 	mesh.primitiveGroups[0].mode = GL_PATCHES;
 	glPatchParameteri(GL_PATCH_VERTICES, 3);
@@ -51,15 +91,17 @@ struct Kelvinlet
 {
 	glm::vec3 center;
 	glm::vec3 force;
+	float sharpness;
 };
 
 void App_SetupTest::UpdateLoop()
 {
-	Engine::FileWatcher shaderWatchers[4];
+	Engine::FileWatcher shaderWatchers[5];
 	shaderWatchers[0].Init("assets/shaders/deform_vert.glsl");
 	shaderWatchers[1].Init("assets/shaders/deform_frag.glsl");
 	shaderWatchers[2].Init("assets/shaders/deform_tess_control.glsl");
 	shaderWatchers[3].Init("assets/shaders/deform_tess_eval.glsl");
+	shaderWatchers[4].Init("assets/shaders/deformation.glsl");
 
 
 	glm::mat4 cameraTransform(1.f);
@@ -71,7 +113,8 @@ void App_SetupTest::UpdateLoop()
 
 	Kelvinlet kelv{
 		glm::vec3(0.f, 0.f, 0.f), 
-		glm::vec3(0.f, 0.f, 0.f)
+		glm::vec3(0.f, 0.f, 0.f),
+		6.f
 	};
 
 	float pixelRadius = glm::length(glm::vec2(2.f / window.Width(), 2.f / window.Height()));
@@ -88,7 +131,7 @@ void App_SetupTest::UpdateLoop()
 		window.BeginUpdate();
 
 
-		for (size_t i = 0; i < 4; i++)
+		for (size_t i = 0; i < 5; i++)
 		{
 			if (shaderWatchers[i].NewVersionAvailable())
 			{
@@ -147,26 +190,27 @@ void App_SetupTest::UpdateLoop()
 
 		{
 			glm::mat4 M(1.f);
-			M = glm::rotate(M, totalTime * 0.2f, glm::vec3(0.f, 1.f, 0.f));
+			//M = glm::rotate(M, totalTime * 0.2f, glm::vec3(0.f, 1.f, 0.f));
 			glm::mat4 invM = glm::inverse(M);
 			glm::mat3 N = glm::transpose(invM);
 			glm::mat4 MVP = VP * M;
 			glm::vec3 localCamPos = invM * cameraTransform[3];
 
 			shader.Use();
-			shader.SetInt("u_debug", 0);
+			shader.SetInt("u_renderMode", 0);
 			shader.SetMat3("u_N", &N[0][0]);
 			shader.SetMat4("u_MVP", &MVP[0][0]);
 			shader.SetVec3("u_localCameraPos", &localCamPos[0]);
 			shader.SetFloat("u_pixelRadius", pixelRadius);
 			shader.SetVec3("u_localKelvinletCenter", &kelv.center[0]);
 			shader.SetVec3("u_localKelvinletForce", &kelv.force[0]);
+			shader.SetFloat("u_kelvinletSharpness", kelv.sharpness);
 			mesh.Bind();
 			mesh.Draw(0);
 
 			if (showDebugMesh)
 			{
-				shader.SetInt("u_debug", 1);
+				shader.SetInt("u_renderMode", 1);
 				glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
 				mesh.Draw(0);
 				glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
@@ -183,8 +227,9 @@ void App_SetupTest::UpdateLoop()
 			{
 				showDebugMesh = !showDebugMesh;
 			}
-			ImGui::DragFloat3("Center", &kelv.center.x, 0.1f, -10.f, 10.f, "%.1f", 1.f);
-			ImGui::DragFloat3("Force", &kelv.force.x, 0.1f, -10.f, 10.f, "%.1f", 1.f);
+			ImGui::DragFloat3("Center", &kelv.center.x, 0.03f, -10.f, 10.f, "%.2f", 1.f);
+			ImGui::DragFloat3("Force", &kelv.force.x, 0.03f, -10.f, 10.f, "%.2f", 1.f);
+			ImGui::DragFloat("Sharpness", &kelv.sharpness, 0.03f, 1.f, 16.f, "%.2f", 1.f);
 
 			ImGui::End();
 		}

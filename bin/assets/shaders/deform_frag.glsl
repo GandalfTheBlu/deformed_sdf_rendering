@@ -1,42 +1,18 @@
 #version 430
+#include "assets/shaders/deformation.glsl"
 
 layout(location=0) in vec3 i_undeformedPos;
 
 out vec4 o_color;
 out float gl_FragDepth;
 
-uniform int u_debug;
+// debug settings
+uniform int u_renderMode;// 0 = sphere trace, 1 = default (mesh)
+
 uniform mat3 u_N;
 uniform mat4 u_MVP;
 uniform vec3 u_localCameraPos;
 uniform float u_pixelRadius;
-uniform vec3 u_localKelvinletCenter;
-uniform vec3 u_localKelvinletForce;
-
-vec3 Kelvinlet(vec3 point, vec3 center, vec3 force) 
-{
-	vec3 toPoint = point - center;
-	float dirCompare = dot(toPoint, force);
-	
-	if(dirCompare == 0.)
-	{
-		return vec3(0.);
-	}
-	
-	float displacement = exp(-(dot(toPoint, toPoint) - 
-		dirCompare * dirCompare / dot(force, force)));
-		
-	return force * displacement;
-}
-
-vec3 Deform(vec3 pos)
-{
-	return pos + Kelvinlet(
-		pos, 
-		u_localKelvinletCenter, 
-		u_localKelvinletForce
-	);
-}
 
 mat3 DeformationJacobian(vec3 undefPoint)
 {	
@@ -107,17 +83,58 @@ vec3 SolveEuler(vec3 undefPoint, vec3 defDirection, vec3 startUndefDirection, fl
 	return y;
 }
 
-float SdBox(vec3 p, vec3 b)
+vec3 Fold(vec3 p, vec3 normal)
 {
-	vec3 q = abs(p) - b;
-	return length(max(q, 0.)) + min(max(q.x, max(q.y, q.z)), 0.);
+	return p - 2. * min(0., dot(p, normal)) * normal;
+}
+
+vec3 RotX(vec3 p, float angle)
+{
+	float startAngle = atan(p.y, p.z);
+	float radius = length(p.yz);
+	return vec3(p.x, radius * sin(startAngle + angle), radius * cos(startAngle + angle));
+}
+
+float Capsule(vec3 p, vec3 a, vec3 b, float radius)
+{
+	vec3 pa = p - a;
+	vec3 ba = b - a;
+	float h = clamp(dot(pa, ba) / dot(ba, ba), 0., 1.);
+	return length(pa - ba * h) - radius;
+}
+
+float Tree(vec3 p)
+{	
+	vec2 dim = vec2(1., 8.);
+	float d = Capsule(p, vec3(0., -1., 0.), vec3(0., 1. + dim.y, 0.), dim.x);
+	vec3 scale = vec3(1.);
+	vec3 change = vec3(0.7,0.68,0.7);
+	
+	const vec3 n1 = normalize(vec3(1., 0., 1.)); 
+	const vec3 n2 = vec3(n1.x, 0., -n1.z);
+	const vec3 n3 = vec3(-n1.x, 0., n1.z);
+	
+	for(int i=0; i<7; i++)
+	{
+		p = Fold(p, n1);	
+		p = Fold(p, n2);	
+		p = Fold(p, n3);	
+		
+		p.y -= scale.y*dim.y;
+		p.z = abs(p.z);
+		p = RotX(p, 3.1415*0.25);
+		
+		scale *= change;
+		
+		d = min(d, Capsule(p, vec3(0.), vec3(0., dim.y * scale.y, 0.), scale.x*dim.x));
+	}
+	
+	return d;
 }
 
 float Sdf(vec3 p)
 {
-	float box = SdBox(p, vec3(1.)) - 0.1;
-	float sphere = length(p) - 1.4;
-	return min(box, sphere);
+	return Tree(p * 5.) / 5.;
 }
 
 vec3 NLST(vec3 undefOrigin, vec3 defDirection, float toOriginDistance, inout bool hit)
@@ -175,6 +192,23 @@ vec3 WorldSdfGradient(vec3 undefPoint)
 	return normalize(u_N * defGradient);
 }
 
+vec3 DeformationColor(vec3 undefPoint)
+{
+	const float spectrumScale = 2.;
+	float deformAmount = distance(undefPoint, Deform(undefPoint));
+	deformAmount = min(deformAmount / spectrumScale, 1.);
+	
+	const vec3 blue = vec3(0.2, 0., 1.);
+	const vec3 green = vec3(0., 1., 0.2);
+	const vec3 yellow = vec3(1., 1., 0.);
+	const vec3 red = vec3(1., 0., 0.);
+	
+	vec3 color = mix(blue, green, smoothstep(0., 0.33, deformAmount));
+	color = mix(color, yellow, smoothstep(0.33, 0.66, deformAmount));
+	color = mix(color, red, smoothstep(0.66, 1., deformAmount));
+	return color;
+}
+
 vec3 Shade(vec3 undefHitPoint, vec3 defDirection, vec3 lightDir)
 {
 	vec3 worldNormal = WorldSdfGradient(undefHitPoint);
@@ -184,7 +218,7 @@ vec3 Shade(vec3 undefHitPoint, vec3 defDirection, vec3 lightDir)
 	
 	vec3 ambientColor = vec3(0.1, 0.1, 0.2);
 	vec3 lightColor = vec3(1., 0.9, 0.7);
-	vec3 albedo = vec3(1.);
+	vec3 albedo = DeformationColor(undefHitPoint);
 	
 	return albedo * (ambientColor + lightColor * (diff + spec));
 }
@@ -197,7 +231,7 @@ float DeformedPointToDepth(vec3 defPoint)
 
 void main()
 {
-	if(u_debug == 0)
+	if(u_renderMode == 0)
 	{
 		vec3 undefOrigin = i_undeformedPos;
 		vec3 defDirection = Deform(undefOrigin) - u_localCameraPos;
@@ -213,14 +247,14 @@ void main()
 		}
 		
 		vec3 lightDir = normalize(vec3(-0.8, -1., 0.6));
-		vec3 color = Shade(undefHitPoint, defDirection, lightDir);
+		o_color = vec4(Shade(undefHitPoint, defDirection, lightDir), 1.);
 		
-		o_color = vec4(color, 1.);
 		gl_FragDepth = DeformedPointToDepth(Deform(undefHitPoint));
 	}
 	else
 	{
 		o_color = vec4(0.25);
+		
 		gl_FragDepth = DeformedPointToDepth(Deform(i_undeformedPos));
 	}
 }
