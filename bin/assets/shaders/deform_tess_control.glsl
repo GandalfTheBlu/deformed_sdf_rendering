@@ -38,9 +38,30 @@ float LinearizationError(vec3 undeformedPos, vec3 deformedPos)
 	return distance(deformedPos, Deform(undeformedPos));
 }
 
+float GetTessellationLevel(float error)
+{
+	if(error > 0.04)
+	{
+		return 5.;
+	}
+	if(error > 0.03)
+	{
+		return 4.;
+	}
+	if(error > 0.02)
+	{
+		return 3.;
+	}
+	if(error > 0.01)
+	{
+		return 2.;
+	}
+	return 1.;
+}
+
 void main()
 {
-	// pass the undeformed vertex to the tesselation evaluation shader
+	// pass the undeformed vertex to the tessellation evaluation shader
 	gl_out[gl_InvocationID].gl_Position = gl_in[gl_InvocationID].gl_Position;
 	
 	// only one vertex per patch handles tesselation
@@ -49,72 +70,59 @@ void main()
 		return;
 	}
 	
-	// calculate the linearization error across the triangle
-	vec3 undefP0 = gl_in[0].gl_Position.xyz;
-	vec3 undefP1 = gl_in[1].gl_Position.xyz;
-	vec3 undefP2 = gl_in[2].gl_Position.xyz;
+	// calculate the linearization error across each edge
+	// to get the same result for neighboring triangles
 	
-	vec3 undefEdge0 = undefP1 - undefP0;
-	vec3 undefEdge1 = undefP2 - undefP0;
-	
-	vec3 defP0 = i_deformedPos[0];
-	vec3 defP1 = i_deformedPos[1];
-	vec3 defP2 = i_deformedPos[2];
-	
-	vec3 defEdge0 = defP1 - defP0;
-	vec3 defEdge1 = defP2 - defP0;
-	
-	float totalError = 0.;
-	float sampleCount = 0.;
-	
+	// edge 0: start = 1, end = 2
+	// edge 1: start = 0, end = 2
+	// edge 2: start = 0, end = 1
+	const int edgeStartIndices[3] = int[]
+	(
+		1, 0, 0
+	);
+	const int edgeEndIndices[3] = int[]
+	(
+		2, 2, 1
+	);
 	const int edgeSections = 5;
-	for(int i=0; i<=edgeSections; i++)
+	const float invEdgeSections = 1. / float(edgeSections);
+	
+	float edgeErrors[3] = float[](
+		0., 0., 0.
+	);
+	
+	for(int i=0; i<3; i++)
 	{
-		float u = float(i) / edgeSections;
-		vec3 undefEdgePoint0 = undefP0 + undefEdge0 * u;
-		vec3 undefEdgePoint1 = undefP1 + undefEdge1 * u;
-		vec3 undefFacePath = undefEdgePoint1 - undefEdgePoint0;
-		vec3 defEdgePoint0 = defP0 + defEdge0 * u;
-		vec3 defEdgePoint1 = defP1 + defEdge1 * u;
-		vec3 defFacePath = defEdgePoint1 - defEdgePoint0;
+		int startIndex = edgeStartIndices[i];
+		int endIndex = edgeEndIndices[i];
+		
+		vec3 undefEdgeStart = gl_in[startIndex].gl_Position.xyz;
+		vec3 undefEdgeEnd = gl_in[endIndex].gl_Position.xyz;
+		vec3 undefEdge = undefEdgeEnd - undefEdgeStart;
+		
+		vec3 defEdgeStart = i_deformedPos[startIndex];
+		vec3 defEdgeEnd = i_deformedPos[endIndex];
+		vec3 defEdge = defEdgeEnd - defEdgeStart;
 		
 		for(int j=0; j<=edgeSections; j++)
 		{
-			float v = float(j) / edgeSections;
-			vec3 undefFacePoint = undefEdgePoint0 + undefFacePath * v;
-			vec3 defFacePoint = defEdgePoint0 + defFacePath * v;
+			float edgeScale = float(j) * invEdgeSections;
 			
-			totalError += LinearizationError(undefFacePoint, defFacePoint);
-			sampleCount++;
+			vec3 undefPoint = undefEdgeStart + undefEdge * edgeScale;
+			vec3 defPoint = defEdgeStart + defEdge * edgeScale;
+			
+			edgeErrors[i] += LinearizationError(undefPoint, defPoint);
 		}
+		
+		edgeErrors[i] *= invEdgeSections;
 	}
 	
-	float error = totalError / sampleCount;
+	// use the average edge error for the center tessellation
+	float averageError = 
+		(edgeErrors[0] + edgeErrors[1] + edgeErrors[2]) / 3.;
 	
-	// find the correct tesselation level based on error
-	float tessLevel = 1.;
-	
-	const float errorThresholds[4] = float[](
-		0.01,
-		0.02,
-		0.03,
-		0.04
-	);
-	
-	for(int i=0; i<4; i++)
-	{
-		if(error > errorThresholds[i])
-		{
-			tessLevel = float(i + 2);
-		}
-		else
-		{
-			break;
-		}
-	}
-	
-	gl_TessLevelOuter[0] = tessLevel;
-	gl_TessLevelOuter[1] = tessLevel;
-	gl_TessLevelOuter[2] = tessLevel;
-	gl_TessLevelInner[0] = tessLevel;
+	gl_TessLevelOuter[0] = GetTessellationLevel(edgeErrors[0]);
+	gl_TessLevelOuter[1] = GetTessellationLevel(edgeErrors[1]);
+	gl_TessLevelOuter[2] = GetTessellationLevel(edgeErrors[2]);
+	gl_TessLevelInner[0] = GetTessellationLevel(averageError);
 }
