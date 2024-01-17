@@ -12,7 +12,7 @@ uniform int u_renderMode;// 0 = sphere trace, 1 = default (mesh)
 uniform mat3 u_N;
 uniform mat4 u_MVP;
 uniform vec3 u_localCameraPos;
-uniform float u_pixelRadius;
+//uniform float u_pixelRadius;
 
 mat3 DeformationJacobian(vec3 undefPoint)
 {	
@@ -154,10 +154,10 @@ vec3 NLST(vec3 undefOrigin, vec3 defDirection, float toOriginDistance, inout boo
 		
 		mat3 invJacobian = inverse(DeformationJacobian(undefPoint));
 		
-		float minRadius = u_pixelRadius * distTraveled * determinant(invJacobian);
+		//float minRadius = u_pixelRadius * distTraveled * determinant(invJacobian);
 		distTraveled += radius;
 		
-		if(radius < minRadius)
+		if(radius < 0.001/*minRadius*/)
 		{
 			hit = true;
 			break;
@@ -165,7 +165,7 @@ vec3 NLST(vec3 undefOrigin, vec3 defDirection, float toOriginDistance, inout boo
 		
 		vec3 undefDirection = normalize(invJacobian * defDirection);
 		
-		if(radius < minRadius * 3.)
+		if(radius < 0.1/*minRadius * 3.*/)
 		{
 			undefPoint = SolveEuler(undefPoint, defDirection, undefDirection, integrationStepLength, radius);
 		}

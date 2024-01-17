@@ -30,6 +30,8 @@ namespace Engine
 
 		void SetFloat(const std::string& name, GLfloat value);
 		void SetInt(const std::string& name, GLint value);
+		void SetFloats(const std::string& name, GLfloat* valuePtr, GLsizei count = 1);
+		void SetInts(const std::string& name, GLint* valuePtr, GLsizei count = 1);
 		void SetVec2(const std::string& name, const GLfloat* valuePtr, GLsizei count = 1);
 		void SetVec3(const std::string& name, const GLfloat* valuePtr, GLsizei count = 1);
 		void SetVec4(const std::string& name, const GLfloat* valuePtr, GLsizei count = 1);

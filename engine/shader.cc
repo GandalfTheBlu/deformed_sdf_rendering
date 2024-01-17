@@ -183,6 +183,18 @@ namespace Engine
 		glUniform1i(nameToLocation[name], value);
 	}
 
+	void Shader::SetFloats(const std::string& name, GLfloat* valuePtr, GLsizei count)
+	{
+		AddLocationIfNeeded(name);
+		glUniform1fv(nameToLocation[name], count, valuePtr);
+	}
+
+	void Shader::SetInts(const std::string& name, GLint* valuePtr, GLsizei count)
+	{
+		AddLocationIfNeeded(name);
+		glUniform1iv(nameToLocation[name], count, valuePtr);
+	}
+
 	void Shader::SetVec2(const std::string& name, const GLfloat* valuePtr, GLsizei count)
 	{
 		AddLocationIfNeeded(name);

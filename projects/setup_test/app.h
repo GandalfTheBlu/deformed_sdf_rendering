@@ -8,8 +8,10 @@ class App_SetupTest
 public:
 	Engine::Window window;
 	Engine::Camera camera;
-	Engine::RenderMesh mesh;
-	Engine::Shader shader;
+	Engine::RenderMesh sdfMesh;
+	Engine::Shader sdfShader;
+	Engine::RenderMesh sphereMesh;
+	Engine::Shader sphereShader;
 
 	App_SetupTest();
 
