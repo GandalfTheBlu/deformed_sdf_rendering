@@ -28,6 +28,9 @@ vec3 Kelvinlet(vec3 point, vec3 center, vec3 force)
 #ifdef BONE_MODE
 vec3 LinearBlend(vec3 point)
 {	
+	// todo: use a 3d texture to look up which bones to sample
+	// instead of sampling every bone
+
 	vec3 displacement = vec3(0.);
 	
 	for(int i=0; i<BONE_COUNT; i++)

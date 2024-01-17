@@ -42,6 +42,8 @@ vec3 SolveBS23(vec3 undefPoint, vec3 defDirection, vec3 startUndefDirection, flo
 	vec3 y1 = undefPoint;
 	vec3 k1 = startUndefDirection;
 	
+	float distanceTraveled = 0.;
+	
 	for(int i=0; i<16; i++)
 	{
 		vec3 k2 = UndeformedDirection(y1 + (0.5 * stepLength) * k1, defDirection);
@@ -52,7 +54,9 @@ vec3 SolveBS23(vec3 undefPoint, vec3 defDirection, vec3 startUndefDirection, flo
 		y1 += stepLength * ((7. / 24) * k1 + 0.25 * k2 + (1. / 3.) * k3 + (1. / 8.) * k4);
 		k1 = k4;
 		
-		if(distance(y1, undefPoint) >= maxRadius)
+		distanceTraveled += stepLength;
+		
+		if(distanceTraveled >= maxRadius)
 		{
 			break;
 		}
@@ -68,11 +72,15 @@ vec3 SolveEuler(vec3 undefPoint, vec3 defDirection, vec3 startUndefDirection, fl
 	vec3 y = undefPoint;
 	vec3 k = startUndefDirection;
 	
+	float distanceTraveled = 0.;
+	
 	for(int i=0; i<16; i++)
 	{
 		y += k * stepLength;
 		
-		if(distance(y, undefPoint) >= maxRadius)
+		distanceTraveled += stepLength;
+		
+		if(distanceTraveled >= maxRadius)
 		{
 			break;
 		}
@@ -165,7 +173,7 @@ vec3 NLST(vec3 undefOrigin, vec3 defDirection, float toOriginDistance, inout boo
 		
 		vec3 undefDirection = normalize(invJacobian * defDirection);
 		
-		if(radius < 0.1/*minRadius * 3.*/)
+		if(radius < 0.5/*minRadius * 3.*/)
 		{
 			undefPoint = SolveEuler(undefPoint, defDirection, undefDirection, integrationStepLength, radius);
 		}

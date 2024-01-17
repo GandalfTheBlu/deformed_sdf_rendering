@@ -66,27 +66,27 @@ App_SetupTest::App_SetupTest()
 
 void App_SetupTest::Init()
 {
-	//window.Init(800, 600, "deformed sdf");
-	window.Init(1600, 1200, "deformed sdf");
+	window.Init(800, 600, "deformed sdf");
+	//window.Init(1600, 1200, "deformed sdf");
 
 	camera.Init(70.f, float(window.Width()) / window.Height(), 0.3f, 500.f);
-	
+
 	Engine::TriangulateScalarField(
-		sdfMesh, 
-		Sdf, 
-		glm::vec3(-6.f), 
-		glm::vec3(6.f), 
-		0.25f, 
+		sdfMesh,
+		Sdf,
+		glm::vec3(-6.f),
+		glm::vec3(6.f),
+		0.25f,
 		glm::length(glm::vec3(0.25f))
 	);
 	sdfMesh.primitiveGroups[0].mode = GL_PATCHES;
 	glPatchParameteri(GL_PATCH_VERTICES, 3);
 
 	sdfShader.Reload(
-		"assets/shaders/deform_vert.glsl", 
-		"assets/shaders/deform_frag.glsl", 
-		{ 
-			"assets/shaders/deform_tess_control.glsl", 
+		"assets/shaders/deform_vert.glsl",
+		"assets/shaders/deform_frag.glsl",
+		{
+			"assets/shaders/deform_tess_control.glsl",
 			"assets/shaders/deform_tess_eval.glsl"
 		}
 	);
@@ -109,9 +109,9 @@ struct Kelvinlet
 template<size_t MAX_BONES>
 struct SkeletonState
 {
-	 glm::vec3 undeformedBonePoints[MAX_BONES];
-	 glm::vec2 boneFalloffs[MAX_BONES];
-	 glm::mat4 boneMatrices[MAX_BONES];
+	glm::vec3 undeformedBonePoints[MAX_BONES];
+	glm::vec2 boneFalloffs[MAX_BONES];
+	glm::mat4 boneMatrices[MAX_BONES];
 };
 
 template<size_t MAX_BONES>
@@ -161,7 +161,7 @@ void App_SetupTest::UpdateLoop()
 
 #ifdef KELVINLET_MODE
 	Kelvinlet kelv{
-		glm::vec3(0.f, 0.f, 0.f), 
+		glm::vec3(0.f, 0.f, 0.f),
 		glm::vec3(0.f, 0.f, 0.f),
 		6.f
 	};
@@ -197,12 +197,13 @@ void App_SetupTest::UpdateLoop()
 	bool showDebugMesh = true;
 	bool showBones = true;
 
-	float totalTime = 0.f;
-	float fixedDeltaTime = 1.f / 60.f;
+	double time0 = glfwGetTime();
 
 	while (!window.ShouldClose())
 	{
-		totalTime += fixedDeltaTime;
+		double time1 = glfwGetTime();
+		float deltaTime = static_cast<float>(time1 - time0);
+		time0 = time1;
 
 		window.BeginUpdate();
 
@@ -248,8 +249,8 @@ void App_SetupTest::UpdateLoop()
 
 			if (mouse.rightButton.IsDown())
 			{
-				cameraYaw += (float)mouse.movement.dx * sensitivity * fixedDeltaTime;
-				cameraPitch += (float)mouse.movement.dy * sensitivity * fixedDeltaTime;
+				cameraYaw += (float)mouse.movement.dx * sensitivity * deltaTime;
+				cameraPitch += (float)mouse.movement.dy * sensitivity * deltaTime;
 			}
 
 			cameraPitch = glm::clamp(cameraPitch, -1.5f, 1.5f);
@@ -258,7 +259,7 @@ void App_SetupTest::UpdateLoop()
 			glm::quat camRotation = glm::quat(glm::vec3(cameraPitch, cameraYaw, 0.f));
 
 			cameraTransform = glm::mat4(1.f);
-			cameraTransform[3] = glm::vec4(camPosition + move * (fixedDeltaTime * cameraSpeed), 1.f);
+			cameraTransform[3] = glm::vec4(camPosition + move * (deltaTime * cameraSpeed), 1.f);
 			cameraTransform = cameraTransform * glm::mat4_cast(camRotation);
 		}
 
@@ -270,7 +271,7 @@ void App_SetupTest::UpdateLoop()
 			glm::mat3 N = glm::transpose(invM);
 			glm::mat4 MVP = VP * M;
 			glm::vec3 localCamPos = invM * cameraTransform[3];
-			
+
 #ifdef BONE_MODE
 			// build skeleton state
 			for (size_t i = 0; i < boneCount; i++)
@@ -282,11 +283,11 @@ void App_SetupTest::UpdateLoop()
 				glm::mat4 rotate = glm::mat4_cast(glm::quat(eulerAngles[i]));
 				glm::mat4 translate(1.f);
 				translate[3] = glm::vec4(glm::vec3(skeletonBuildData.undeformedBoneTransforms[i][3]) + translations[i], 1.f);
-			
+
 				skeletonBuildData.deformedBoneTransforms[i] = translate * rotate * scale;
-			
-				skeletonState.boneMatrices[i] = 
-					skeletonBuildData.deformedBoneTransforms[i] * 
+
+				skeletonState.boneMatrices[i] =
+					skeletonBuildData.deformedBoneTransforms[i] *
 					glm::inverse(skeletonBuildData.undeformedBoneTransforms[i]);
 
 				skeletonState.undeformedBonePoints[i] = glm::vec3(skeletonBuildData.undeformedBoneTransforms[i][3]);
@@ -325,11 +326,12 @@ void App_SetupTest::UpdateLoop()
 		}
 
 #ifdef BONE_MODE
-		if(showBones) 
+		if (showBones)
 		{
 			sphereShader.Use();
 			sphereMesh.Bind();
 			glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+			glDepthFunc(GL_ALWAYS);
 
 			for (size_t i = 0; i < boneCount; i++)
 			{
@@ -344,8 +346,9 @@ void App_SetupTest::UpdateLoop()
 				sphereShader.SetMat4("u_MVP", &MVP[0][0]);
 				sphereShader.SetVec3("u_color", &color[0]);
 				sphereMesh.Draw(0);
- 			}
+			}
 
+			glDepthFunc(GL_LESS);
 			glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 			sphereMesh.Unbind();
 			sphereShader.StopUsing();
@@ -353,7 +356,9 @@ void App_SetupTest::UpdateLoop()
 #endif
 
 		{
-			ImGui::Begin("Deformation");
+			ImGui::Begin("Menu");
+
+			ImGui::Text("fps: %f", 1.f / deltaTime);
 
 			if (ImGui::RadioButton("Show mesh", showDebugMesh))
 				showDebugMesh = !showDebugMesh;
@@ -363,7 +368,7 @@ void App_SetupTest::UpdateLoop()
 				showBones = !showBones;
 
 			ImGui::InputInt("Bone index", &boneIndex);
-			boneIndex = glm::clamp(boneIndex, 0, (int)boneCount-1);
+			boneIndex = glm::clamp(boneIndex, 0, (int)boneCount - 1);
 			if (ImGui::Button("Reset"))
 			{
 				scales[boneIndex] = glm::vec3(1.f);
