@@ -145,6 +145,25 @@ float Sdf(vec3 p)
 	return Tree(p * 5.) / 5.;
 }
 
+float OffsetError(float distanceTraveled)
+{
+	return 0.001 * distanceTraveled;
+}
+
+vec3 AdjustTerminationPoint(vec3 undefTerminPoint, vec3 undefTerminDirection, float distanceTraveled)
+{
+	float offset = 0.;
+	
+	for(int i=0; i<3; i++)
+	{
+		offset += 
+			Sdf(undefTerminPoint + undefTerminDirection * offset) - 
+			OffsetError(distanceTraveled + offset);
+	}
+	
+	return undefTerminPoint + undefTerminDirection * offset;
+}
+
 vec3 NLST(vec3 undefOrigin, vec3 defDirection, float toOriginDistance, inout bool hit)
 {
 	// non-linear sphere tracing:
@@ -182,6 +201,12 @@ vec3 NLST(vec3 undefOrigin, vec3 defDirection, float toOriginDistance, inout boo
 			undefPoint = SolveBS23(undefPoint, defDirection, undefDirection, integrationStepLength, radius);
 		}
 	}
+	
+	undefPoint = AdjustTerminationPoint(
+		undefPoint,
+		UndeformedDirection(undefPoint, defDirection),
+		distTraveled
+	);
 	
 	return undefPoint;
 }
