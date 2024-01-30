@@ -2,6 +2,7 @@
 #include "camera.h"
 #include "marching_cubes.h"
 #include "shader.h"
+#include "animation.h"
 
 class App_SetupTest
 {
@@ -10,8 +11,10 @@ public:
 	Engine::Camera camera;
 	Engine::RenderMesh sdfMesh;
 	Engine::Shader sdfShader;
-	Engine::RenderMesh sphereMesh;
-	Engine::Shader sphereShader;
+	Engine::Bone bindSkeleton;
+	Engine::Bone animSkeleton;
+	Engine::SkeletonBindPose bindPose;
+	Engine::SkeletonAnimationPose animationPose;
 
 	App_SetupTest();
 

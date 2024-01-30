@@ -21,6 +21,10 @@ mat3 DeformationJacobian(vec3 undefPoint)
 	const vec2 diff = vec2(0.0001, 0.);// dx = dy = dz = 0.0001
 	const float scale = 5000.;// = 1 / (2 * 0.0001)
 	
+#ifdef BONE_MODE
+	FindCurrentBones(undefPoint);
+#endif	
+	
 	vec3 gradientX = (Deform(undefPoint + diff.xyy) - Deform(undefPoint - diff.xyy)) * scale;
 	vec3 gradientY = (Deform(undefPoint + diff.yxy) - Deform(undefPoint - diff.yxy)) * scale;
 	vec3 gradientZ = (Deform(undefPoint + diff.yyx) - Deform(undefPoint - diff.yyx)) * scale;
@@ -45,7 +49,7 @@ vec3 SolveBS23(vec3 undefPoint, vec3 defDirection, vec3 startUndefDirection, flo
 	float distanceTraveled = 0.;
 	
 	for(int i=0; i<16; i++)
-	{
+	{	
 		vec3 k2 = UndeformedDirection(y1 + (0.5 * stepLength) * k1, defDirection);
 		vec3 k3 = UndeformedDirection(y1 + (0.75 * stepLength) * k2, defDirection);
 		vec3 y2 = y1 + stepLength * ((2. / 9.) * k1 + (1. / 3.) * k2 + (4. / 9.) * k3);
@@ -111,6 +115,12 @@ float Capsule(vec3 p, vec3 a, vec3 b, float radius)
 	return length(pa - ba * h) - radius;
 }
 
+float Box(vec3 p, vec3 b)
+{
+	vec3 q = abs(p) - b;
+	return length(max(q, 0.)) + min(max(q.x, max(q.y, q.z)), 0.);
+}
+
 float Tree(vec3 p)
 {	
 	vec2 dim = vec2(1., 8.);
@@ -142,7 +152,8 @@ float Tree(vec3 p)
 
 float Sdf(vec3 p)
 {
-	return Tree(p * 5.) / 5.;
+	return Box(p, vec3(0.5, 2., 0.5));
+	//return Tree(p * 5.) / 5.;
 }
 
 float OffsetError(float distanceTraveled)
@@ -192,14 +203,16 @@ vec3 NLST(vec3 undefOrigin, vec3 defDirection, float toOriginDistance, inout boo
 		
 		vec3 undefDirection = normalize(invJacobian * defDirection);
 		
-		if(radius < 0.5/*minRadius * 3.*/)
-		{
-			undefPoint = SolveEuler(undefPoint, defDirection, undefDirection, integrationStepLength, radius);
-		}
-		else
-		{
-			undefPoint = SolveBS23(undefPoint, defDirection, undefDirection, integrationStepLength, radius);
-		}
+		undefPoint = SolveEuler(undefPoint, defDirection, undefDirection, integrationStepLength, radius);
+		
+		//if(radius < 0.01/*minRadius * 3.*/)
+		//{
+		//	undefPoint = SolveEuler(undefPoint, defDirection, undefDirection, integrationStepLength, radius);
+		//}
+		//else
+		//{
+		//	undefPoint = SolveBS23(undefPoint, defDirection, undefDirection, integrationStepLength, radius);
+		//}
 	}
 	
 	undefPoint = AdjustTerminationPoint(
@@ -288,6 +301,7 @@ void main()
 	{
 		o_color = vec4(0.25);
 		
+		FindCurrentBones(i_undeformedPos);
 		gl_FragDepth = DeformedPointToDepth(Deform(i_undeformedPos));
 	}
 }

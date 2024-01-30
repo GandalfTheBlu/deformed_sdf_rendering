@@ -20,6 +20,9 @@ void main()
 	o_undeformedPos = undefP;
 	
 	// finally, apply deformation and MVP matrix
+#ifdef BONE_MODE
+	FindCurrentBones(undefP);
+#endif	
 	vec3 defP = Deform(undefP);
 	
 	gl_Position = u_MVP * vec4(defP, 1.);

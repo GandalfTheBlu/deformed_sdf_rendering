@@ -20,6 +20,12 @@ glm::vec3 RotX(const glm::vec3& p, float angle)
 	return glm::vec3(p.x, radius * glm::sin(startAngle + angle), radius * glm::cos(startAngle + angle));
 }
 
+float Box(glm::vec3 p, glm::vec3 b)
+{
+	glm::vec3 q = glm::abs(p) - b;
+	return glm::length(glm::max(q, 0.f)) + glm::min(glm::max(q.x, glm::max(q.y, q.z)), 0.f);
+}
+
 float Capsule(const glm::vec3& p, const glm::vec3& a, const glm::vec3& b, float radius)
 {
 	glm::vec3 pa = p - a;
@@ -58,7 +64,8 @@ float Tree(glm::vec3 p)
 
 float Sdf(const glm::vec3& p)
 {
-	return Tree(p * 5.f) / 5.f;
+	return Box(p, glm::vec3(0.5f, 2.f, 0.5f));
+	//return Tree(p * 5.f) / 5.f;
 }
 
 App_SetupTest::App_SetupTest()
@@ -66,16 +73,16 @@ App_SetupTest::App_SetupTest()
 
 void App_SetupTest::Init()
 {
-	window.Init(800, 600, "deformed sdf");
-	//window.Init(1600, 1200, "deformed sdf");
+	//window.Init(800, 600, "deformed sdf");
+	window.Init(1600, 1200, "deformed sdf");
 
 	camera.Init(70.f, float(window.Width()) / window.Height(), 0.3f, 500.f);
 
 	Engine::TriangulateScalarField(
 		sdfMesh,
 		Sdf,
-		glm::vec3(-6.f),
-		glm::vec3(6.f),
+		glm::vec3(-1.f, -2.5f, -1.f),
+		glm::vec3(1.f, 2.5f, 1.f),
 		0.25f,
 		glm::length(glm::vec3(0.25f))
 	);
@@ -91,12 +98,21 @@ void App_SetupTest::Init()
 		}
 	);
 
-	Engine::GenerateUnitSphere(sphereMesh);
+	// configure bind pose
+	bindSkeleton.localTransform = Engine::Transform(glm::vec3(0.f, -2.f, 0.f), glm::vec3(0.f), glm::vec3(1.f));
+	bindSkeleton.localWeightVolume.startPoint = glm::vec3(0.f, 0.f, 0.f);
+	bindSkeleton.localWeightVolume.endPoint = glm::vec3(0.f, 2.f, 0.f);
+	bindSkeleton.localWeightVolume.radius = 0.75f;
 
-	sphereShader.Reload(
-		"assets/shaders/flat_vert.glsl",
-		"assets/shaders/flat_frag.glsl"
-	);
+	bindSkeleton.AddChild();
+	bindSkeleton.GetChild(0).localTransform = Engine::Transform(glm::vec3(0.f, 2.f, 0.f), glm::vec3(0.f), glm::vec3(1.f));
+	bindSkeleton.GetChild(0).localWeightVolume.startPoint = glm::vec3(0.f, 0.f, 0.f);
+	bindSkeleton.GetChild(0).localWeightVolume.endPoint = glm::vec3(0.f, 2.f, 0.f);
+	bindSkeleton.GetChild(0).localWeightVolume.radius = 0.75f;
+
+	bindSkeleton.GenerateBindPose(bindPose, glm::mat4(1.f));
+
+	bindSkeleton.MakeCopy(animSkeleton);
 }
 
 struct Kelvinlet
@@ -105,42 +121,6 @@ struct Kelvinlet
 	glm::vec3 force;
 	float sharpness;
 };
-
-template<size_t MAX_BONES>
-struct SkeletonState
-{
-	glm::vec3 undeformedBonePoints[MAX_BONES];
-	glm::vec2 boneFalloffs[MAX_BONES];
-	glm::mat4 boneMatrices[MAX_BONES];
-};
-
-template<size_t MAX_BONES>
-void InitSkeletonState(SkeletonState<MAX_BONES>& skeletonState)
-{
-	for (size_t i = 0; i < MAX_BONES; i++)
-	{
-		skeletonState.undeformedBonePoints[i] = glm::vec3(0.f);
-		skeletonState.boneFalloffs[i] = glm::vec2(1.f);
-		skeletonState.boneMatrices[i] = glm::mat4(1.f);
-	}
-}
-
-template<size_t MAX_BONES>
-struct SkeletonBuildData
-{
-	glm::mat4 undeformedBoneTransforms[MAX_BONES];
-	glm::mat4 deformedBoneTransforms[MAX_BONES];
-};
-
-template<size_t MAX_BONES>
-void InitSkeletonBuildData(SkeletonBuildData<MAX_BONES>& skeletonBuildData)
-{
-	for (size_t i = 0; i < MAX_BONES; i++)
-	{
-		skeletonBuildData.undeformedBoneTransforms[i] = glm::mat4(1.f);
-		skeletonBuildData.deformedBoneTransforms[i] = glm::mat4(1.f);
-	}
-}
 
 void App_SetupTest::UpdateLoop()
 {
@@ -167,35 +147,12 @@ void App_SetupTest::UpdateLoop()
 	};
 #endif
 
-#ifdef BONE_MODE
-	constexpr size_t boneCount = 2;
-
-	SkeletonBuildData<boneCount> skeletonBuildData;
-	InitSkeletonBuildData(skeletonBuildData);
-	skeletonBuildData.undeformedBoneTransforms[1][3] = glm::vec4(0.f, 4.f, 0.f, 1.f);
-
-	SkeletonState<boneCount> skeletonState;
-	InitSkeletonState(skeletonState);
-
-	int boneIndex = 0;
-	glm::vec3 scales[]{
-		glm::vec3(1.f),
-		glm::vec3(1.f)
-	};
-	glm::vec3 eulerAngles[]{
-		glm::vec3(0.f),
-		glm::vec3(0.f)
-	};
-	glm::vec3 translations[]{
-		glm::vec3(0.f),
-		glm::vec3(0.f)
-	};
-#endif
-
 	//float pixelRadius = glm::length(glm::vec2(2.f / window.Width(), 2.f / window.Height()));
 
 	bool showDebugMesh = true;
-	bool showBones = true;
+	
+	Engine::Bone* p_focusedBindBone = &bindSkeleton;
+	Engine::Bone* p_focusedAnimBone = &animSkeleton;
 
 	double time0 = glfwGetTime();
 
@@ -263,6 +220,9 @@ void App_SetupTest::UpdateLoop()
 			cameraTransform = cameraTransform * glm::mat4_cast(camRotation);
 		}
 
+		animationPose.worldTransforms.clear();
+		animSkeleton.GenerateAnimationPose(animationPose, glm::mat4(1.f));
+
 		glm::mat4 VP = camera.CalcP() * camera.CalcV(cameraTransform);
 
 		{
@@ -272,27 +232,6 @@ void App_SetupTest::UpdateLoop()
 			glm::mat4 MVP = VP * M;
 			glm::vec3 localCamPos = invM * cameraTransform[3];
 
-#ifdef BONE_MODE
-			// build skeleton state
-			for (size_t i = 0; i < boneCount; i++)
-			{
-				glm::mat4 scale(1.f);
-				scale[0][0] = scales[i][0];
-				scale[1][1] = scales[i][1];
-				scale[2][2] = scales[i][2];
-				glm::mat4 rotate = glm::mat4_cast(glm::quat(eulerAngles[i]));
-				glm::mat4 translate(1.f);
-				translate[3] = glm::vec4(glm::vec3(skeletonBuildData.undeformedBoneTransforms[i][3]) + translations[i], 1.f);
-
-				skeletonBuildData.deformedBoneTransforms[i] = translate * rotate * scale;
-
-				skeletonState.boneMatrices[i] =
-					skeletonBuildData.deformedBoneTransforms[i] *
-					glm::inverse(skeletonBuildData.undeformedBoneTransforms[i]);
-
-				skeletonState.undeformedBonePoints[i] = glm::vec3(skeletonBuildData.undeformedBoneTransforms[i][3]);
-			}
-#endif
 			sdfShader.Use();
 			sdfShader.SetInt("u_renderMode", 0);
 			sdfShader.SetMat3("u_N", &N[0][0]);
@@ -306,9 +245,21 @@ void App_SetupTest::UpdateLoop()
 			sdfShader.SetFloat("u_kelvinletSharpness", kelv.sharpness);
 #endif
 #ifdef BONE_MODE
-			sdfShader.SetVec3("u_undeformedBonePoints", &skeletonState.undeformedBonePoints[0][0], boneCount);
-			sdfShader.SetVec2("u_boneFalloffs", &skeletonState.boneFalloffs[0][0], boneCount);
-			sdfShader.SetMat4("u_boneMatrices", &skeletonState.boneMatrices[0][0][0], boneCount);
+			for (size_t i = 0; i < bindPose.weightVolumes.size(); i++)
+			{
+				std::string indexStr(std::to_string(i));
+				std::string boneWeightName("u_boneWeightVolumes[" + indexStr + "]");
+				std::string boneMatrixName("u_boneMatrices[" + indexStr + "]");
+
+				glm::mat4 boneMatrix = animationPose.worldTransforms[i] * bindPose.inverseWorldTransforms[i];
+
+				sdfShader.SetVec3(boneWeightName + ".startPoint", &bindPose.weightVolumes[i].startPoint[0]);
+				sdfShader.SetVec3(boneWeightName + ".endPoint", &bindPose.weightVolumes[i].endPoint[0]);
+				sdfShader.SetFloat(boneWeightName + ".radius", bindPose.weightVolumes[i].radius);
+				sdfShader.SetMat4(boneMatrixName, &boneMatrix[0][0]);
+			}
+			sdfShader.SetInt("u_bonesCount", (GLint)bindPose.inverseWorldTransforms.size());
+			sdfShader.SetFloat("u_boneWeightPadding", glm::length(glm::vec3(0.25f)));
 #endif
 			sdfMesh.Bind();
 			sdfMesh.Draw(0);
@@ -325,36 +276,6 @@ void App_SetupTest::UpdateLoop()
 			sdfShader.StopUsing();
 		}
 
-#ifdef BONE_MODE
-		if (showBones)
-		{
-			sphereShader.Use();
-			sphereMesh.Bind();
-			glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-			glDepthFunc(GL_ALWAYS);
-
-			for (size_t i = 0; i < boneCount; i++)
-			{
-				glm::mat4 MVP = VP * skeletonBuildData.deformedBoneTransforms[i];
-				glm::vec3 color(0.2f);
-
-				if ((int)i == boneIndex)
-				{
-					color = glm::vec3(1.f, 0.5f, 0.5f);
-				}
-
-				sphereShader.SetMat4("u_MVP", &MVP[0][0]);
-				sphereShader.SetVec3("u_color", &color[0]);
-				sphereMesh.Draw(0);
-			}
-
-			glDepthFunc(GL_LESS);
-			glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
-			sphereMesh.Unbind();
-			sphereShader.StopUsing();
-		}
-#endif
-
 		{
 			ImGui::Begin("Menu");
 
@@ -363,29 +284,39 @@ void App_SetupTest::UpdateLoop()
 			if (ImGui::RadioButton("Show mesh", showDebugMesh))
 				showDebugMesh = !showDebugMesh;
 
-#ifdef BONE_MODE
-			if (ImGui::RadioButton("Show bones", showBones))
-				showBones = !showBones;
-
-			ImGui::InputInt("Bone index", &boneIndex);
-			boneIndex = glm::clamp(boneIndex, 0, (int)boneCount - 1);
-			if (ImGui::Button("Reset"))
-			{
-				scales[boneIndex] = glm::vec3(1.f);
-				eulerAngles[boneIndex] = glm::vec3(0.f);
-				translations[boneIndex] = glm::vec3(0.f);
-				skeletonState.boneFalloffs[boneIndex] = glm::vec2(0.3f, 1.f);
-			}
-			ImGui::DragFloat3("Scale", &scales[boneIndex][0], 0.03f, 0.1f, 10.f, "%.2f", 1.f);
-			ImGui::DragFloat3("Euler angles", &eulerAngles[boneIndex][0], 0.03f, -3.14159f, 3.14159f, "%.2f", 1.f);
-			ImGui::DragFloat3("Translation", &translations[boneIndex][0], 0.03f, -10.f, 10.f, "%.2f", 1.f);
-			ImGui::DragFloat("Radius", &skeletonState.boneFalloffs[boneIndex][0], 0.03f, 0.1f, 20.f, "%.2f", 1.f);
-			ImGui::DragFloat("Falloff rate", &skeletonState.boneFalloffs[boneIndex][1], 0.03f, 0.1f, 20.f, "%.2f", 1.f);
-#endif
 #ifdef KELVINLET_MODE
 			ImGui::DragFloat3("Center", &kelv.center.x, 0.03f, -10.f, 10.f, "%.2f", 1.f);
 			ImGui::DragFloat3("Force", &kelv.force.x, 0.03f, -10.f, 10.f, "%.2f", 1.f);
 			ImGui::DragFloat("Sharpness", &kelv.sharpness, 0.03f, 1.f, 16.f, "%.2f", 1.f);
+#endif
+#ifdef BONE_MODE
+			ImGui::NewLine();
+			ImGui::Text("Bone:");
+			ImGui::DragFloat3("Position", &p_focusedAnimBone->localTransform.position[0], 0.03f, -10.f, 10.f, "%.2f", 1.f);
+			ImGui::DragFloat3("Euler angles", &p_focusedAnimBone->localTransform.eulerAngles[0], 0.03f, -3.f, 3.f, "%.2f", 1.f);
+			ImGui::DragFloat3("Scale", &p_focusedAnimBone->localTransform.scale[0], 0.03f, 0.1f, 10.f, "%.2f", 1.f);
+			if (ImGui::Button("Reset"))
+			{
+				p_focusedAnimBone->localTransform = p_focusedBindBone->localTransform;
+			}
+
+			ImGui::NewLine();
+			for (size_t i = 0; i < p_focusedBindBone->ChildrenCount(); i++)
+			{
+				std::string btnName("Select child " + std::to_string(i));
+				if (ImGui::Button(btnName.c_str()))
+				{
+					p_focusedBindBone = &p_focusedBindBone->GetChild(i);
+					p_focusedAnimBone = &p_focusedAnimBone->GetChild(i);
+					break;
+				}
+			}
+
+			if (p_focusedBindBone->p_parent != nullptr && ImGui::Button("Select parent"))
+			{
+				p_focusedBindBone = p_focusedBindBone->p_parent;
+				p_focusedAnimBone = p_focusedAnimBone->p_parent;
+			}
 #endif
 			ImGui::End();
 		}

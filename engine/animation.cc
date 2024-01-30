@@ -1,130 +1,34 @@
 #include "animation.h"
 #include <gtx/quaternion.hpp>
-#include <cassert>
 
 namespace Engine
 {
-	Bone::Bone(bool _hasParent) :
-		hasParent(_hasParent),
-		p_child(nullptr),
-		localTransform(1.f),
-		weightVolumeRadius(1.f)
+	CapsulePrimitive::CapsulePrimitive() :
+		startPoint(0.f),
+		endPoint(0.f, 1.f, 0.f),
+		radius(0.5f)
 	{}
 
-	Bone::~Bone()
-	{
-		if(p_child != nullptr)
-			delete p_child;
-	}
-
-	void Bone::AddChild()
-	{
-		if (p_child == nullptr)
-			p_child = new Bone(true);
-	}
-
-	void Bone::RemoveChild()
-	{
-		if (p_child != nullptr)
-		{
-			delete p_child;
-			p_child = nullptr;
-		}
-	}
-
-	bool Bone::HasChild()
-	{
-		return p_child == nullptr;
-	}
-
-	Bone& Bone::GetChild()
-	{
-		assert(p_child != nullptr);
-		return *p_child;
-	}
-
-	void Bone::GenerateBindPose(SkeletonBindPose& outData, const glm::mat4& parentWorldTransform)
-	{
-		glm::mat4 worldTransform = localTransform * parentWorldTransform;
-
-		// fill in the end point of the parent's weight volume
-		if (hasParent)
-			outData.weightVolumes.back().endPoint = worldTransform[3];
-
-		// ignore rest if leaf bone
-		if (!HasChild())
-			return;
-		
-		// add incomplete weight volume and let the child fill in the end position
-		outData.weightVolumes.push_back(CapsulePrimitive{
-			glm::vec3(worldTransform[3]),
-			glm::vec3(0.f),// child fills in with its position
-			weightVolumeRadius
-		});
-
-		outData.inverseWorldTransforms.push_back(glm::inverse(worldTransform));
-
-		// proceed with the recursion
-		p_child->GenerateBindPose(outData, worldTransform);
-	}
-
-	void Bone::GenerateAnimationPose(SkeletonAnimationPose& outData, const glm::mat4& parentWorldTransform)
-	{
-		// ignore if leaf bone
-		if (!HasChild())
-			return;
-
-		glm::mat4 worldTransform = localTransform * parentWorldTransform;
-		outData.worldTransforms.push_back(worldTransform);
-
-		p_child->GenerateAnimationPose(outData, parentWorldTransform);
-	}
-
-
-	Skeleton::Skeleton()
+	CapsulePrimitive::CapsulePrimitive(const glm::vec3& _startPoint, const glm::vec3& _endPoint, float _radius) :
+		startPoint(_startPoint),
+		endPoint(_endPoint),
+		radius(_radius)
 	{}
 
-	Skeleton::~Skeleton()
-	{
-		for (Bone* p_rootBone : rootBones)
-			delete p_rootBone;
-	}
 
-	void Skeleton::AddRootBone()
-	{
-		rootBones.push_back(new Bone(false));
-	}
+	Transform::Transform() :
+		position(0.f),
+		eulerAngles(0.f),
+		scale(1.f)
+	{}
 
-	void Skeleton::RemoveRootBone(size_t boneIndex)
-	{
-		delete rootBones[boneIndex];
-		rootBones.erase(rootBones.begin() + boneIndex);
-	}
+	Transform::Transform(const glm::vec3& _position, const glm::vec3& _eulerAngles, const glm::vec3& _scale) :
+		position(_position),
+		eulerAngles(_eulerAngles),
+		scale(_scale)
+	{}
 
-	size_t Skeleton::RootBonesCount()
-	{
-		return rootBones.size();
-	}
-
-	Bone& Skeleton::GetRootBone(size_t boneIndex)
-	{
-		return *rootBones[boneIndex];
-	}
-
-	void Skeleton::GenerateBindPose(SkeletonBindPose& outData)
-	{
-		for (Bone* p_rootBone : rootBones)
-			p_rootBone->GenerateBindPose(outData, glm::mat4(1.f));
-	}
-
-	void Skeleton::GenerateAnimationPose(SkeletonAnimationPose& outData)
-	{
-		for (Bone* p_rootBone : rootBones)
-			p_rootBone->GenerateAnimationPose(outData, glm::mat4(1.f));
-	}
-
-
-	glm::mat4 MakeTransform(const glm::vec3& position, const glm::vec3& eulerAngles, const glm::vec3& scale)
+	glm::mat4 Transform::Matrix() const
 	{
 		glm::mat4 T(1.f);
 
@@ -137,5 +41,76 @@ namespace Engine
 		T[3] = glm::vec4(position, 1.f);
 
 		return T;
+	}
+
+
+	Bone::Bone() :
+		p_parent(nullptr)
+	{}
+
+	Bone::Bone(Bone* _p_parent) :
+		p_parent(_p_parent)
+	{}
+
+	Bone::~Bone()
+	{
+		for (Bone* p_bone : children)
+			delete p_bone;
+	}
+
+	void Bone::AddChild()
+	{
+		children.push_back(new Bone(this));
+	}
+
+	void Bone::RemoveChild(size_t childIndex)
+	{
+		delete children[childIndex];
+		children.erase(children.begin() + childIndex);
+	}
+
+	size_t Bone::ChildrenCount()
+	{
+		return children.size();
+	}
+
+	Bone& Bone::GetChild(size_t childIndex)
+	{
+		return *children[childIndex];
+	}
+
+	void Bone::GenerateBindPose(SkeletonBindPose& outData, const glm::mat4& parentWorldTransform)
+	{
+		glm::mat4 worldTransform = parentWorldTransform * localTransform.Matrix();
+		glm::vec3 worldStartPoint = glm::vec3(worldTransform * glm::vec4(localWeightVolume.startPoint, 1.f));
+		glm::vec3 worldEndPoint = glm::vec3(worldTransform * glm::vec4(localWeightVolume.endPoint, 1.f));
+
+		outData.inverseWorldTransforms.push_back(glm::inverse(worldTransform));
+		outData.weightVolumes.emplace_back(worldStartPoint, worldEndPoint, localWeightVolume.radius);
+
+		for (Bone* p_child : children)
+			p_child->GenerateBindPose(outData, worldTransform);
+	}
+
+	void Bone::GenerateAnimationPose(SkeletonAnimationPose& outData, const glm::mat4& parentWorldTransform)
+	{
+		glm::mat4 worldTransform = parentWorldTransform * localTransform.Matrix();
+		outData.worldTransforms.push_back(worldTransform);
+
+		for (Bone* p_child : children)
+			p_child->GenerateAnimationPose(outData, worldTransform);
+	}
+
+	void Bone::MakeCopy(Bone& outCopy)
+	{
+		for (Bone* p_child : children)
+		{
+			Bone* p_childCopy = new Bone(&outCopy);
+			outCopy.children.push_back(p_childCopy);
+			p_child->MakeCopy(*p_childCopy);
+		}
+
+		outCopy.localTransform = localTransform;
+		outCopy.localWeightVolume = localWeightVolume;
 	}
 }

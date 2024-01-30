@@ -9,10 +9,17 @@ uniform float u_kelvinletSharpness;
 #endif
 
 #ifdef BONE_MODE
-#define BONE_COUNT 2
-uniform vec3 u_undeformedBonePoints[BONE_COUNT];
-uniform vec2 u_boneFalloffs[BONE_COUNT];// x: radius of effect, y: falloff rate
-uniform mat4 u_boneMatrices[BONE_COUNT];
+#define MAX_BONES 2
+struct CapsulePrimitive
+{
+	vec3 startPoint;
+	vec3 endPoint;
+	float radius;
+};
+
+uniform int u_bonesCount;
+uniform CapsulePrimitive u_boneWeightVolumes[MAX_BONES];
+uniform mat4 u_boneMatrices[MAX_BONES];
 #endif
 
 #ifdef KELVINLET_MODE
@@ -26,27 +33,67 @@ vec3 Kelvinlet(vec3 point, vec3 center, vec3 force)
 #endif
 
 #ifdef BONE_MODE
+int g_boneIndex1 = -1;
+int g_boneIndex2 = -1;
+float g_boneWeight1 = 0.;
+float g_boneWeight2 = 0.;
+
+float BoneWeight(vec3 p, CapsulePrimitive c)
+{
+	vec3 pa = p - c.startPoint;
+	vec3 ba = c.endPoint - c.startPoint;
+	float h = clamp(dot(pa, ba) / dot(ba, ba), 0., 1.);
+	vec3 v = pa - ba * h;
+	float d = dot(v, v) - c.radius * c.radius;
+	
+	return max(0., 1. - max(0., d));
+}
+
+void FindCurrentBones(vec3 point)
+{
+	g_boneIndex1 = -1;
+	g_boneIndex2 = -1;
+	g_boneWeight1 = 0.;
+	g_boneWeight2 = 0.;
+	
+	for(int i=0; i<u_bonesCount; i++)
+	{
+		float weight = BoneWeight(point, u_boneWeightVolumes[i]);
+		
+		if(weight > g_boneWeight1)
+		{
+			g_boneIndex2 = g_boneIndex1;
+			g_boneWeight2 = g_boneWeight1;
+			
+			g_boneIndex1 = i;
+			g_boneWeight1 = weight;
+		}
+		else if(weight > g_boneWeight2)
+		{
+			g_boneIndex2 = i;
+			g_boneWeight2 = weight;
+		}
+	}
+}
+
 vec3 LinearBlend(vec3 point)
 {	
-	// todo: use a 3d texture to look up which bones to sample
-	// instead of sampling every bone
-
-	vec3 displacement = vec3(0.);
-	
-	for(int i=0; i<BONE_COUNT; i++)
-	{	
-		vec3 diff = point - u_undeformedBonePoints[i];
-		vec2 falloff = u_boneFalloffs[i];
-		float dist = max(0., sqrt(dot(diff, diff)) - falloff.x);
-		float boneWeight = exp(-dist * falloff.y);
+	if(g_boneIndex1 != -1)
+	{
+		vec3 deformed = vec3(u_boneMatrices[g_boneIndex1] * vec4(point, 1.));
 		
-		vec4 defPoint = u_boneMatrices[i] * vec4(point, 1.);
+		if(g_boneIndex2 != -1)
+		{
+			deformed = g_boneWeight1 * deformed + 
+				g_boneWeight2 * vec3(u_boneMatrices[g_boneIndex2] * vec4(point, 1.));
+			
+			deformed *= 1. / (g_boneWeight1 + g_boneWeight2);
+		}
 		
-		
-		displacement += boneWeight * (defPoint.xyz - point);
+		return deformed;
 	}
 	
-	return point + displacement;
+	return point;
 }
 #endif
 

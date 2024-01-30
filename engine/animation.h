@@ -9,6 +9,9 @@ namespace Engine
 		glm::vec3 startPoint;
 		glm::vec3 endPoint;
 		float radius;
+
+		CapsulePrimitive();
+		CapsulePrimitive(const glm::vec3& _startPoint, const glm::vec3& _endPoint, float _radius);
 	};
 
 	struct SkeletonBindPose
@@ -25,46 +28,40 @@ namespace Engine
 		std::vector<glm::mat4> worldTransforms;
 	};
 
+	struct Transform
+	{
+		glm::vec3 position;
+		glm::vec3 eulerAngles;
+		glm::vec3 scale;
+
+		Transform();
+		Transform(const glm::vec3& _position, const glm::vec3& _eulerAngles, const glm::vec3& _scale);
+
+		glm::mat4 Matrix() const;
+	};
+
 	class Bone
 	{
 	private:
-		Bone* p_child;
+		std::vector<Bone*> children;
 
 	public:
-		bool hasParent;
-		glm::mat4 localTransform;// relative to parent transform
-		float weightVolumeRadius;
+		Bone* p_parent;
+		Transform localTransform;// relative to parent transform
+		CapsulePrimitive localWeightVolume;// defined in local space
 
-		Bone() = delete;
-		Bone(bool _hasParent);
+		Bone();
+		Bone(Bone* _p_parent);
 		~Bone();
 
 		void AddChild();
-		void RemoveChild();
-		bool HasChild();
-		Bone& GetChild();
+		void RemoveChild(size_t childIndex);
+		size_t ChildrenCount();
+		Bone& GetChild(size_t childIndex);
 
 		void GenerateBindPose(SkeletonBindPose& outData, const glm::mat4& parentWorldTransform);
 		void GenerateAnimationPose(SkeletonAnimationPose& outData, const glm::mat4& parentWorldTransform);
+
+		void MakeCopy(Bone& outCopy);
 	};
-
-	class Skeleton
-	{
-	private:
-		std::vector<Bone*> rootBones;
-
-	public:
-		Skeleton();
-		~Skeleton();
-
-		void AddRootBone();
-		void RemoveRootBone(size_t boneIndex);
-		size_t RootBonesCount();
-		Bone& GetRootBone(size_t boneIndex);
-
-		void GenerateBindPose(SkeletonBindPose& outData);
-		void GenerateAnimationPose(SkeletonAnimationPose& outData);
-	};
-
-	glm::mat4 MakeTransform(const glm::vec3& position, const glm::vec3& eulerAngles, const glm::vec3& scale);
 }
