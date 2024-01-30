@@ -21,6 +21,8 @@ SET(engine_files
 	camera.cc
 	marching_cubes.h
 	marching_cubes.cc
+	animation.h
+	animation.cc
 )
 SOURCE_GROUP("engine" FILES ${engine_files})
 ADD_LIBRARY(engine STATIC ${engine_files})
