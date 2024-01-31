@@ -10,15 +10,16 @@ uniform float u_kelvinletSharpness;
 
 #ifdef BONE_MODE
 #define MAX_BONES 2
-struct CapsulePrimitive
+struct BoneWeightVolume
 {
 	vec3 startPoint;
-	vec3 endPoint;
-	float radius;
+	vec3 startToEnd;
+	float lengthSquared;
+	float falloffRate;
 };
 
 uniform int u_bonesCount;
-uniform CapsulePrimitive u_boneWeightVolumes[MAX_BONES];
+uniform BoneWeightVolume u_boneWeightVolumes[MAX_BONES];
 uniform mat4 u_boneMatrices[MAX_BONES];
 #endif
 
@@ -33,67 +34,62 @@ vec3 Kelvinlet(vec3 point, vec3 center, vec3 force)
 #endif
 
 #ifdef BONE_MODE
-int g_boneIndex1 = -1;
-int g_boneIndex2 = -1;
-float g_boneWeight1 = 0.;
-float g_boneWeight2 = 0.;
-
-float BoneWeight(vec3 p, CapsulePrimitive c)
+float CheapExp(float x) 
 {
-	vec3 pa = p - c.startPoint;
-	vec3 ba = c.endPoint - c.startPoint;
-	float h = clamp(dot(pa, ba) / dot(ba, ba), 0., 1.);
-	vec3 v = pa - ba * h;
-	float d = dot(v, v) - c.radius * c.radius;
-	
-	return max(0., 1. - max(0., d));
+    x = 1. + x / 256.;
+    x *= x;
+    x *= x;
+    x *= x;
+    x *= x;
+    x *= x;
+    return x;
 }
 
-void FindCurrentBones(vec3 point)
+float BoneWeight(vec3 p, int boneIndex)
 {
-	g_boneIndex1 = -1;
-	g_boneIndex2 = -1;
-	g_boneWeight1 = 0.;
-	g_boneWeight2 = 0.;
+	BoneWeightVolume bone = u_boneWeightVolumes[boneIndex];
+	vec3 startToPoint = p - bone.startPoint;
+	float h = clamp(dot(startToPoint, bone.startToEnd) / bone.lengthSquared, 0., 1.);
+	vec3 v = startToPoint - bone.startToEnd * h;
+	float d = dot(v, v);
 	
-	for(int i=0; i<u_bonesCount; i++)
-	{
-		float weight = BoneWeight(point, u_boneWeightVolumes[i]);
-		
-		if(weight > g_boneWeight1)
-		{
-			g_boneIndex2 = g_boneIndex1;
-			g_boneWeight2 = g_boneWeight1;
-			
-			g_boneIndex1 = i;
-			g_boneWeight1 = weight;
-		}
-		else if(weight > g_boneWeight2)
-		{
-			g_boneIndex2 = i;
-			g_boneWeight2 = weight;
-		}
-	}
+	return CheapExp(-bone.falloffRate*d);
 }
 
 vec3 LinearBlend(vec3 point)
 {	
-	if(g_boneIndex1 != -1)
+	float weight1 = 0.;
+	float weight2 = 0.;
+	int boneIndex1 = -1;
+	int boneIndex2 = -1;
+
+	for(int i=0; i<u_bonesCount; i++)
 	{
-		vec3 deformed = vec3(u_boneMatrices[g_boneIndex1] * vec4(point, 1.));
-		
-		if(g_boneIndex2 != -1)
+		float weight = BoneWeight(point, i);
+		if(weight > weight1)
 		{
-			deformed = g_boneWeight1 * deformed + 
-				g_boneWeight2 * vec3(u_boneMatrices[g_boneIndex2] * vec4(point, 1.));
-			
-			deformed *= 1. / (g_boneWeight1 + g_boneWeight2);
+			weight2 = weight1;
+			boneIndex2 = boneIndex1;
+			weight1 = weight;
+			boneIndex1 = i;
 		}
-		
-		return deformed;
+		else if(weight > weight2)
+		{
+			weight2 = weight;
+			boneIndex2 = i;
+		}
+	}
+
+	float wSum = weight1 + weight2;
+	
+	if(wSum == 0.)
+	{
+		return point;
 	}
 	
-	return point;
+	return (weight1 * vec3(u_boneMatrices[boneIndex1] * vec4(point, 1.)) + 
+			weight2 * vec3(u_boneMatrices[boneIndex2] * vec4(point, 1.))) * 
+			(1. / wSum);
 }
 #endif
 

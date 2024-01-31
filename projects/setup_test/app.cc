@@ -73,8 +73,8 @@ App_SetupTest::App_SetupTest()
 
 void App_SetupTest::Init()
 {
-	//window.Init(800, 600, "deformed sdf");
-	window.Init(1600, 1200, "deformed sdf");
+	window.Init(1000, 800, "deformed sdf");
+	//window.Init(1600, 1200, "deformed sdf");
 
 	camera.Init(70.f, float(window.Width()) / window.Height(), 0.3f, 500.f);
 
@@ -99,16 +99,16 @@ void App_SetupTest::Init()
 	);
 
 	// configure bind pose
-	bindSkeleton.localTransform = Engine::Transform(glm::vec3(0.f, -2.f, 0.f), glm::vec3(0.f), glm::vec3(1.f));
-	bindSkeleton.localWeightVolume.startPoint = glm::vec3(0.f, 0.f, 0.f);
-	bindSkeleton.localWeightVolume.endPoint = glm::vec3(0.f, 2.f, 0.f);
-	bindSkeleton.localWeightVolume.radius = 0.75f;
+	bindSkeleton.localTransform = Engine::Transform(glm::vec3(0.f, -1.f, 0.f), glm::vec3(0.f), glm::vec3(1.f));
+	bindSkeleton.localWeightVolume.startPoint = glm::vec3(0.f, -1.f, 0.f);
+	bindSkeleton.localWeightVolume.startToEnd = glm::vec3(0.f, 2.f, 0.f);
+	bindSkeleton.localWeightVolume.falloffRate = 10.f;
 
 	bindSkeleton.AddChild();
-	bindSkeleton.GetChild(0).localTransform = Engine::Transform(glm::vec3(0.f, 2.f, 0.f), glm::vec3(0.f), glm::vec3(1.f));
-	bindSkeleton.GetChild(0).localWeightVolume.startPoint = glm::vec3(0.f, 0.f, 0.f);
-	bindSkeleton.GetChild(0).localWeightVolume.endPoint = glm::vec3(0.f, 2.f, 0.f);
-	bindSkeleton.GetChild(0).localWeightVolume.radius = 0.75f;
+	bindSkeleton.GetChild(0).localTransform = Engine::Transform(glm::vec3(0.f, 1.f, 0.f), glm::vec3(0.f), glm::vec3(1.f));
+	bindSkeleton.GetChild(0).localWeightVolume.startPoint = glm::vec3(0.f, 1.f, 0.f);
+	bindSkeleton.GetChild(0).localWeightVolume.startToEnd = glm::vec3(0.f, 2.f, 0.f);
+	bindSkeleton.GetChild(0).localWeightVolume.falloffRate = 10.f;
 
 	bindSkeleton.GenerateBindPose(bindPose, glm::mat4(1.f));
 
@@ -147,7 +147,7 @@ void App_SetupTest::UpdateLoop()
 	};
 #endif
 
-	//float pixelRadius = glm::length(glm::vec2(2.f / window.Width(), 2.f / window.Height()));
+	float pixelRadius = glm::length(glm::vec2(2.f / window.Width(), 2.f / window.Height()));
 
 	bool showDebugMesh = true;
 	
@@ -206,8 +206,8 @@ void App_SetupTest::UpdateLoop()
 
 			if (mouse.rightButton.IsDown())
 			{
-				cameraYaw += (float)mouse.movement.dx * sensitivity * deltaTime;
-				cameraPitch += (float)mouse.movement.dy * sensitivity * deltaTime;
+				cameraYaw -= (float)mouse.movement.dx * sensitivity * deltaTime;
+				cameraPitch -= (float)mouse.movement.dy * sensitivity * deltaTime;
 			}
 
 			cameraPitch = glm::clamp(cameraPitch, -1.5f, 1.5f);
@@ -237,7 +237,7 @@ void App_SetupTest::UpdateLoop()
 			sdfShader.SetMat3("u_N", &N[0][0]);
 			sdfShader.SetMat4("u_MVP", &MVP[0][0]);
 			sdfShader.SetVec3("u_localCameraPos", &localCamPos[0]);
-			//sdfShader.SetFloat("u_pixelRadius", pixelRadius);
+			sdfShader.SetFloat("u_pixelRadius", pixelRadius);
 
 #ifdef KELVINLET_MODE
 			sdfShader.SetVec3("u_localKelvinletCenter", &kelv.center[0]);
@@ -254,12 +254,12 @@ void App_SetupTest::UpdateLoop()
 				glm::mat4 boneMatrix = animationPose.worldTransforms[i] * bindPose.inverseWorldTransforms[i];
 
 				sdfShader.SetVec3(boneWeightName + ".startPoint", &bindPose.weightVolumes[i].startPoint[0]);
-				sdfShader.SetVec3(boneWeightName + ".endPoint", &bindPose.weightVolumes[i].endPoint[0]);
-				sdfShader.SetFloat(boneWeightName + ".radius", bindPose.weightVolumes[i].radius);
+				sdfShader.SetVec3(boneWeightName + ".startToEnd", &bindPose.weightVolumes[i].startToEnd[0]);
+				sdfShader.SetFloat(boneWeightName + ".lengthSquared", bindPose.weightVolumes[i].lengthSquared);
+				sdfShader.SetFloat(boneWeightName + ".falloffRate", bindPose.weightVolumes[i].falloffRate);
 				sdfShader.SetMat4(boneMatrixName, &boneMatrix[0][0]);
 			}
 			sdfShader.SetInt("u_bonesCount", (GLint)bindPose.inverseWorldTransforms.size());
-			sdfShader.SetFloat("u_boneWeightPadding", glm::length(glm::vec3(0.25f)));
 #endif
 			sdfMesh.Bind();
 			sdfMesh.Draw(0);

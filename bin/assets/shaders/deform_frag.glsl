@@ -12,24 +12,22 @@ uniform int u_renderMode;// 0 = sphere trace, 1 = default (mesh)
 uniform mat3 u_N;
 uniform mat4 u_MVP;
 uniform vec3 u_localCameraPos;
-//uniform float u_pixelRadius;
+uniform float u_pixelRadius;
 
 mat3 DeformationJacobian(vec3 undefPoint)
 {	
 	// calculate the gradients in the x-, y-, and z-planes using
-	// the central differance and construct the Jacobian matrix
+	// the forward differences and construct the Jacobian matrix
 	const vec2 diff = vec2(0.0001, 0.);// dx = dy = dz = 0.0001
-	const float scale = 5000.;// = 1 / (2 * 0.0001)
+	const float scale = 10000.;// = 1 / 0.0001
 	
-#ifdef BONE_MODE
-	FindCurrentBones(undefPoint);
-#endif	
+	vec3 centerDeformation = Deform(undefPoint);
+	mat3 jacobian = mat3(0.);
+	jacobian[0] = (Deform(undefPoint + diff.xyy) - centerDeformation) * scale;
+	jacobian[1] = (Deform(undefPoint + diff.yxy) - centerDeformation) * scale;
+	jacobian[2] = (Deform(undefPoint + diff.yyx) - centerDeformation) * scale;
 	
-	vec3 gradientX = (Deform(undefPoint + diff.xyy) - Deform(undefPoint - diff.xyy)) * scale;
-	vec3 gradientY = (Deform(undefPoint + diff.yxy) - Deform(undefPoint - diff.yxy)) * scale;
-	vec3 gradientZ = (Deform(undefPoint + diff.yyx) - Deform(undefPoint - diff.yyx)) * scale;
-	
-	return mat3(gradientX, gradientY, gradientZ);
+	return jacobian;
 }
 
 vec3 UndeformedDirection(vec3 undefPoint, vec3 defDirection)
@@ -67,32 +65,6 @@ vec3 SolveBS23(vec3 undefPoint, vec3 defDirection, vec3 startUndefDirection, flo
 	}
 	
 	return y1;
-}
-
-vec3 SolveEuler(vec3 undefPoint, vec3 defDirection, vec3 startUndefDirection, float stepLength, float maxRadius)
-{
-	// Euler integration for stepping along the deformed ray path when the surface offset is small
-	
-	vec3 y = undefPoint;
-	vec3 k = startUndefDirection;
-	
-	float distanceTraveled = 0.;
-	
-	for(int i=0; i<16; i++)
-	{
-		y += k * stepLength;
-		
-		distanceTraveled += stepLength;
-		
-		if(distanceTraveled >= maxRadius)
-		{
-			break;
-		}
-		
-		k = UndeformedDirection(y, defDirection);
-	}
-	
-	return y;
 }
 
 vec3 Fold(vec3 p, vec3 normal)
@@ -181,45 +153,52 @@ vec3 NLST(vec3 undefOrigin, vec3 defDirection, float toOriginDistance, inout boo
 	// perform ODE traversal inside each unbounding-sphere using the deformation jacobian
 	// to transform the ray direction
 	const float integrationStepLength = 0.2 / 16.;
+	const float maxDistFromOrigin = 10.;
 	float distTraveled = toOriginDistance;
 	vec3 undefPoint = undefOrigin;
+	vec3 undefDirection = vec3(0.);
 	hit = false;
 	
-	for(int i=0; i<32; i++)
+	for(int i=0; i<64; i++)
 	{
-		vec3 sphereCenter = undefPoint;
-		float radius = Sdf(sphereCenter);
+		float radius = Sdf(undefPoint);
 		
 		mat3 invJacobian = inverse(DeformationJacobian(undefPoint));
 		
-		//float minRadius = u_pixelRadius * distTraveled * determinant(invJacobian);
+		float minRadius = u_pixelRadius * distTraveled * determinant(invJacobian);
 		distTraveled += radius;
 		
-		if(radius < 0.001/*minRadius*/)
+		undefDirection = normalize(invJacobian * defDirection);
+		
+		if(radius < minRadius)
 		{
 			hit = true;
 			break;
 		}
+		if(distTraveled - toOriginDistance > maxDistFromOrigin)
+		{
+			break;
+		}
 		
-		vec3 undefDirection = normalize(invJacobian * defDirection);
-		
-		undefPoint = SolveEuler(undefPoint, defDirection, undefDirection, integrationStepLength, radius);
-		
-		//if(radius < 0.01/*minRadius * 3.*/)
-		//{
-		//	undefPoint = SolveEuler(undefPoint, defDirection, undefDirection, integrationStepLength, radius);
-		//}
-		//else
-		//{
-		//	undefPoint = SolveBS23(undefPoint, defDirection, undefDirection, integrationStepLength, radius);
-		//}
+		if(radius < minRadius * 3.)
+		{
+			// simple euler integration step
+			undefPoint += undefDirection * radius;
+		}
+		else
+		{
+			undefPoint = SolveBS23(undefPoint, defDirection, undefDirection, integrationStepLength, radius);
+		}
 	}
 	
-	undefPoint = AdjustTerminationPoint(
-		undefPoint,
-		UndeformedDirection(undefPoint, defDirection),
-		distTraveled
-	);
+	if(hit)
+	{
+		undefPoint = AdjustTerminationPoint(
+			undefPoint,
+			undefDirection,
+			distTraveled
+		);		
+	}
 	
 	return undefPoint;
 }
@@ -300,8 +279,6 @@ void main()
 	else
 	{
 		o_color = vec4(0.25);
-		
-		FindCurrentBones(i_undeformedPos);
 		gl_FragDepth = DeformedPointToDepth(Deform(i_undeformedPos));
 	}
 }

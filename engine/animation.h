@@ -4,14 +4,15 @@
 
 namespace Engine
 {
-	struct CapsulePrimitive
+	struct BoneWeightVolume
 	{
 		glm::vec3 startPoint;
-		glm::vec3 endPoint;
-		float radius;
+		glm::vec3 startToEnd;
+		float lengthSquared;
+		float falloffRate;
 
-		CapsulePrimitive();
-		CapsulePrimitive(const glm::vec3& _startPoint, const glm::vec3& _endPoint, float _radius);
+		BoneWeightVolume();
+		BoneWeightVolume(const glm::vec3& _startPoint, const glm::vec3& _startToEnd, float _falloffRate);
 	};
 
 	struct SkeletonBindPose
@@ -19,7 +20,7 @@ namespace Engine
 		// each bone is represented by its inverse world transform and
 		// its weight volume (within which its weight is > 0)
 		std::vector<glm::mat4> inverseWorldTransforms;
-		std::vector<CapsulePrimitive> weightVolumes;
+		std::vector<BoneWeightVolume> weightVolumes;
 	};
 
 	struct SkeletonAnimationPose
@@ -48,7 +49,7 @@ namespace Engine
 	public:
 		Bone* p_parent;
 		Transform localTransform;// relative to parent transform
-		CapsulePrimitive localWeightVolume;// defined in local space
+		BoneWeightVolume localWeightVolume;// defined in local space
 
 		Bone();
 		Bone(Bone* _p_parent);

@@ -3,17 +3,20 @@
 
 namespace Engine
 {
-	CapsulePrimitive::CapsulePrimitive() :
+	BoneWeightVolume::BoneWeightVolume() :
 		startPoint(0.f),
-		endPoint(0.f, 1.f, 0.f),
-		radius(0.5f)
+		startToEnd(0.f),
+		lengthSquared(0.f),
+		falloffRate(0.f)
 	{}
 
-	CapsulePrimitive::CapsulePrimitive(const glm::vec3& _startPoint, const glm::vec3& _endPoint, float _radius) :
+	BoneWeightVolume::BoneWeightVolume(const glm::vec3& _startPoint, const glm::vec3& _startToEnd, float _falloffRate) :
 		startPoint(_startPoint),
-		endPoint(_endPoint),
-		radius(_radius)
-	{}
+		startToEnd(_startToEnd),
+		falloffRate(_falloffRate)
+	{
+		lengthSquared = glm::dot(startToEnd, startToEnd);
+	}
 
 
 	Transform::Transform() :
@@ -83,10 +86,10 @@ namespace Engine
 	{
 		glm::mat4 worldTransform = parentWorldTransform * localTransform.Matrix();
 		glm::vec3 worldStartPoint = glm::vec3(worldTransform * glm::vec4(localWeightVolume.startPoint, 1.f));
-		glm::vec3 worldEndPoint = glm::vec3(worldTransform * glm::vec4(localWeightVolume.endPoint, 1.f));
+		glm::vec3 worldStarToEnd = glm::vec3(worldTransform * glm::vec4(localWeightVolume.startToEnd, 0.f));
 
 		outData.inverseWorldTransforms.push_back(glm::inverse(worldTransform));
-		outData.weightVolumes.emplace_back(worldStartPoint, worldEndPoint, localWeightVolume.radius);
+		outData.weightVolumes.emplace_back(worldStartPoint, worldStarToEnd, localWeightVolume.falloffRate);
 
 		for (Bone* p_child : children)
 			p_child->GenerateBindPose(outData, worldTransform);

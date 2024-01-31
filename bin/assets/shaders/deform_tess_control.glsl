@@ -8,9 +8,6 @@ layout(location=0) in vec3 i_deformedPos[];
 float LinearizationError(vec3 undeformedPos, vec3 deformedPos)
 {
 	// differance between the interpolated deformed position and the deformed interpolated position
-#ifdef BONE_MODE
-	FindCurrentBones(undeformedPos);
-#endif	
 	return distance(deformedPos, Deform(undeformedPos));
 }
 
