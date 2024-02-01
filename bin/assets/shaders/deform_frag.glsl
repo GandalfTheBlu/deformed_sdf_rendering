@@ -3,6 +3,8 @@
 
 layout(location=0) in vec3 i_undeformedPos;
 
+in vec4 gl_FragCoord;
+
 out vec4 o_color;
 out float gl_FragDepth;
 
@@ -13,6 +15,8 @@ uniform mat3 u_N;
 uniform mat4 u_MVP;
 uniform vec3 u_localCameraPos;
 uniform float u_pixelRadius;
+uniform vec2 u_screenSize;
+layout(binding=0) uniform sampler2D u_backfaceDistanceTexture;
 
 mat3 DeformationJacobian(vec3 undefPoint)
 {	
@@ -36,15 +40,21 @@ vec3 UndeformedDirection(vec3 undefPoint, vec3 defDirection)
 	return normalize(invJacobian * defDirection);
 }
 
-vec3 SolveBS23(vec3 undefPoint, vec3 defDirection, vec3 startUndefDirection, float stepLength, float maxRadius)
+vec3 SolveBS23(
+	vec3 undefPoint, 
+	vec3 defDirection, 
+	vec3 startUndefDirection, 
+	float maxRadius, 
+	inout float defDistTraveled
+)
 {
 	// Bogacki-Shampine ode solver that returns the next undeformed point along the 
 	// deformed ray path
-	
+	const float stepLength = 0.2 / 16.;
+	const vec3 startUndefPoint = undefPoint;
+	const float maxRadiusSquared = maxRadius * maxRadius;
 	vec3 y1 = undefPoint;
 	vec3 k1 = startUndefDirection;
-	
-	float distanceTraveled = 0.;
 	
 	for(int i=0; i<16; i++)
 	{	
@@ -56,9 +66,11 @@ vec3 SolveBS23(vec3 undefPoint, vec3 defDirection, vec3 startUndefDirection, flo
 		y1 += stepLength * ((7. / 24) * k1 + 0.25 * k2 + (1. / 3.) * k3 + (1. / 8.) * k4);
 		k1 = k4;
 		
-		distanceTraveled += stepLength;
+		defDistTraveled += stepLength;
+		vec3 centerOffset = y1 - startUndefPoint;
+		float offsetSquared = dot(centerOffset, centerOffset);
 		
-		if(distanceTraveled >= maxRadius)
+		if(offsetSquared >= maxRadiusSquared)
 		{
 			break;
 		}
@@ -128,12 +140,12 @@ float Sdf(vec3 p)
 	//return Tree(p * 5.) / 5.;
 }
 
-float OffsetError(float distanceTraveled)
+float OffsetError(float defDistTraveled)
 {
-	return 0.001 * distanceTraveled;
+	return 0.001 * defDistTraveled;
 }
 
-vec3 AdjustTerminationPoint(vec3 undefTerminPoint, vec3 undefTerminDirection, float distanceTraveled)
+vec3 AdjustTerminationPoint(vec3 undefTerminPoint, vec3 undefTerminDirection, float defDistTraveled)
 {
 	float offset = 0.;
 	
@@ -141,20 +153,18 @@ vec3 AdjustTerminationPoint(vec3 undefTerminPoint, vec3 undefTerminDirection, fl
 	{
 		offset += 
 			Sdf(undefTerminPoint + undefTerminDirection * offset) - 
-			OffsetError(distanceTraveled + offset);
+			OffsetError(defDistTraveled + offset);
 	}
 	
 	return undefTerminPoint + undefTerminDirection * offset;
 }
 
-vec3 NLST(vec3 undefOrigin, vec3 defDirection, float toOriginDistance, inout bool hit)
+vec3 NLST(vec3 undefOrigin, vec3 defDirection, float toOriginDistance, float maxDefDistance, inout bool hit)
 {
 	// non-linear sphere tracing:
 	// perform ODE traversal inside each unbounding-sphere using the deformation jacobian
 	// to transform the ray direction
-	const float integrationStepLength = 0.2 / 16.;
-	const float maxDistFromOrigin = 10.;
-	float distTraveled = toOriginDistance;
+	float defDistTraveled = toOriginDistance;
 	vec3 undefPoint = undefOrigin;
 	vec3 undefDirection = vec3(0.);
 	hit = false;
@@ -165,8 +175,7 @@ vec3 NLST(vec3 undefOrigin, vec3 defDirection, float toOriginDistance, inout boo
 		
 		mat3 invJacobian = inverse(DeformationJacobian(undefPoint));
 		
-		float minRadius = u_pixelRadius * distTraveled * determinant(invJacobian);
-		distTraveled += radius;
+		float minRadius = u_pixelRadius * defDistTraveled * determinant(invJacobian);
 		
 		undefDirection = normalize(invJacobian * defDirection);
 		
@@ -175,7 +184,7 @@ vec3 NLST(vec3 undefOrigin, vec3 defDirection, float toOriginDistance, inout boo
 			hit = true;
 			break;
 		}
-		if(distTraveled - toOriginDistance > maxDistFromOrigin)
+		if(defDistTraveled > maxDefDistance)
 		{
 			break;
 		}
@@ -184,10 +193,17 @@ vec3 NLST(vec3 undefOrigin, vec3 defDirection, float toOriginDistance, inout boo
 		{
 			// simple euler integration step
 			undefPoint += undefDirection * radius;
+			defDistTraveled += radius;
 		}
 		else
 		{
-			undefPoint = SolveBS23(undefPoint, defDirection, undefDirection, integrationStepLength, radius);
+			undefPoint = SolveBS23(
+				undefPoint, 
+				defDirection, 
+				undefDirection,  
+				radius, 
+				defDistTraveled
+			);
 		}
 	}
 	
@@ -196,7 +212,7 @@ vec3 NLST(vec3 undefOrigin, vec3 defDirection, float toOriginDistance, inout boo
 		undefPoint = AdjustTerminationPoint(
 			undefPoint,
 			undefDirection,
-			distTraveled
+			defDistTraveled
 		);		
 	}
 	
@@ -258,13 +274,20 @@ void main()
 {
 	if(u_renderMode == 0)
 	{
+		float maxDefDistance = texture(u_backfaceDistanceTexture, gl_FragCoord.xy / u_screenSize).r;
 		vec3 undefOrigin = i_undeformedPos;
 		vec3 defDirection = Deform(undefOrigin) - u_localCameraPos;
 		float toOriginDistance = length(defDirection);
 		defDirection *= 1. / toOriginDistance;
 		
 		bool hit = false;
-		vec3 undefHitPoint = NLST(undefOrigin, defDirection, toOriginDistance, hit);
+		vec3 undefHitPoint = NLST(
+			undefOrigin, 
+			defDirection, 
+			toOriginDistance, 
+			maxDefDistance, 
+			hit
+		);
 		
 		if(!hit)
 		{
@@ -273,7 +296,6 @@ void main()
 		
 		vec3 lightDir = normalize(vec3(-0.8, -1., 0.6));
 		o_color = vec4(Shade(undefHitPoint, defDirection, lightDir), 1.);
-		
 		gl_FragDepth = DeformedPointToDepth(Deform(undefHitPoint));
 	}
 	else

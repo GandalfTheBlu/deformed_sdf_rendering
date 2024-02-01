@@ -31,7 +31,6 @@ namespace Engine
 
 	struct IndexAttribute
 	{
-		GLenum mode;
 		GLuint offset;
 		GLuint count;
 		GLenum type;
@@ -66,7 +65,7 @@ namespace Engine
 		);
 
 		void Bind() const;
-		void Draw(GLuint primitiveGroupIndex) const;
+		void Draw(GLuint primitiveGroupIndex, GLenum mode = GL_TRIANGLES) const;
 		void Unbind() const;
 	};
 }

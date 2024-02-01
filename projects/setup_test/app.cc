@@ -69,7 +69,9 @@ float Sdf(const glm::vec3& p)
 }
 
 App_SetupTest::App_SetupTest()
-{}
+{
+	backfaceRenderTarget = { 0, 0, 0 };
+}
 
 void App_SetupTest::Init()
 {
@@ -86,7 +88,6 @@ void App_SetupTest::Init()
 		0.25f,
 		glm::length(glm::vec3(0.25f))
 	);
-	sdfMesh.primitiveGroups[0].mode = GL_PATCHES;
 	glPatchParameteri(GL_PATCH_VERTICES, 3);
 
 	sdfShader.Reload(
@@ -113,6 +114,42 @@ void App_SetupTest::Init()
 	bindSkeleton.GenerateBindPose(bindPose, glm::mat4(1.f));
 
 	bindSkeleton.MakeCopy(animSkeleton);
+
+
+	// setup backface rendering shader and framebuffer
+	backfaceShader.Reload(
+		"assets/shaders/deform_vert.glsl", 
+		"assets/shaders/backface_frag.glsl", 
+		{
+			"assets/shaders/deform_tess_control.glsl",
+			"assets/shaders/backface_tess_eval.glsl"
+		}
+	);
+
+	glGenFramebuffers(1, &backfaceRenderTarget.framebuffer);
+	glBindFramebuffer(GL_FRAMEBUFFER, backfaceRenderTarget.framebuffer);
+
+	// add target texture
+	glGenTextures(1, &backfaceRenderTarget.texture);
+	glBindTexture(GL_TEXTURE_2D, backfaceRenderTarget.texture);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_R32F, window.Width(), window.Height(), 0, GL_RED, GL_FLOAT, NULL);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, backfaceRenderTarget.texture, 0);
+
+	GLuint attachments[]{ GL_COLOR_ATTACHMENT0 };
+	glDrawBuffers(1, attachments);
+
+	// add depth buffer
+	glGenRenderbuffers(1, &backfaceRenderTarget.depthBuffer);
+	glBindRenderbuffer(GL_RENDERBUFFER, backfaceRenderTarget.depthBuffer);
+	glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT, window.Width(), window.Height());
+	glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, backfaceRenderTarget.depthBuffer);
+
+	assert(glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE);
+
+	glBindFramebuffer(GL_FRAMEBUFFER, 0);
+	glBindTexture(GL_TEXTURE_2D, 0);
 }
 
 struct Kelvinlet
@@ -225,12 +262,60 @@ void App_SetupTest::UpdateLoop()
 
 		glm::mat4 VP = camera.CalcP() * camera.CalcV(cameraTransform);
 
+		// draw backface to get max distance
+		{
+			glBindFramebuffer(GL_FRAMEBUFFER, backfaceRenderTarget.framebuffer);
+			glClearDepth(0.f);
+			glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+			glDepthFunc(GL_GREATER);
+			glCullFace(GL_FRONT);
+
+			glm::mat4 M(1.f);
+			glm::mat4 invM = glm::inverse(M);
+			glm::mat4 MVP = VP * M;
+			glm::vec3 localCamPos = invM * cameraTransform[3];
+
+			backfaceShader.Use();
+			backfaceShader.SetMat4("u_MVP", &MVP[0][0]);
+			backfaceShader.SetVec3("u_localCameraPos", &localCamPos[0]);
+
+#ifdef BONE_MODE
+			for (size_t i = 0; i < bindPose.weightVolumes.size(); i++)
+			{
+				std::string indexStr(std::to_string(i));
+				std::string boneWeightName("u_boneWeightVolumes[" + indexStr + "]");
+				std::string boneMatrixName("u_boneMatrices[" + indexStr + "]");
+
+				glm::mat4 boneMatrix = animationPose.worldTransforms[i] * bindPose.inverseWorldTransforms[i];
+
+				backfaceShader.SetVec3(boneWeightName + ".startPoint", &bindPose.weightVolumes[i].startPoint[0]);
+				backfaceShader.SetVec3(boneWeightName + ".startToEnd", &bindPose.weightVolumes[i].startToEnd[0]);
+				backfaceShader.SetFloat(boneWeightName + ".lengthSquared", bindPose.weightVolumes[i].lengthSquared);
+				backfaceShader.SetFloat(boneWeightName + ".falloffRate", bindPose.weightVolumes[i].falloffRate);
+				backfaceShader.SetMat4(boneMatrixName, &boneMatrix[0][0]);
+			}
+			backfaceShader.SetInt("u_bonesCount", (GLint)bindPose.inverseWorldTransforms.size());
+#endif
+
+			sdfMesh.Bind();
+			sdfMesh.Draw(0, GL_PATCHES);
+			sdfMesh.Unbind();
+
+			backfaceShader.StopUsing();
+
+			glClearDepth(1.f);
+			glDepthFunc(GL_LESS);
+			glCullFace(GL_BACK);
+			glBindFramebuffer(GL_FRAMEBUFFER, 0);
+		}
+
 		{
 			glm::mat4 M(1.f);
 			glm::mat4 invM = glm::inverse(M);
 			glm::mat3 N = glm::transpose(invM);
 			glm::mat4 MVP = VP * M;
 			glm::vec3 localCamPos = invM * cameraTransform[3];
+			glm::vec2 screenSize(window.Width(), window.Height());
 
 			sdfShader.Use();
 			sdfShader.SetInt("u_renderMode", 0);
@@ -238,6 +323,10 @@ void App_SetupTest::UpdateLoop()
 			sdfShader.SetMat4("u_MVP", &MVP[0][0]);
 			sdfShader.SetVec3("u_localCameraPos", &localCamPos[0]);
 			sdfShader.SetFloat("u_pixelRadius", pixelRadius);
+			sdfShader.SetVec2("u_screenSize", &screenSize[0]);
+
+			glActiveTexture(GL_TEXTURE0);
+			glBindTexture(GL_TEXTURE_2D, backfaceRenderTarget.texture);
 
 #ifdef KELVINLET_MODE
 			sdfShader.SetVec3("u_localKelvinletCenter", &kelv.center[0]);
@@ -262,15 +351,18 @@ void App_SetupTest::UpdateLoop()
 			sdfShader.SetInt("u_bonesCount", (GLint)bindPose.inverseWorldTransforms.size());
 #endif
 			sdfMesh.Bind();
-			sdfMesh.Draw(0);
+			sdfMesh.Draw(0, GL_PATCHES);
 
 			if (showDebugMesh)
 			{
 				sdfShader.SetInt("u_renderMode", 1);
 				glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-				sdfMesh.Draw(0);
+				sdfMesh.Draw(0, GL_PATCHES);
 				glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 			}
+
+			glActiveTexture(GL_TEXTURE0);
+			glBindTexture(GL_TEXTURE_2D, 0);
 
 			sdfMesh.Unbind();
 			sdfShader.StopUsing();

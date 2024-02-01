@@ -647,7 +647,6 @@ namespace Engine
         indexBuffer.byteSize = sizeof(GLuint) * meshData.indices.size();
 
         IndexAttribute indexAttrib;
-        indexAttrib.mode = GL_TRIANGLES;
         indexAttrib.offset = 0;
         indexAttrib.count = meshData.indices.size();
         indexAttrib.type = GL_UNSIGNED_INT;

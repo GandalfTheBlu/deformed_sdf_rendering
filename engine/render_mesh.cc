@@ -82,11 +82,11 @@ namespace Engine
 		glBindVertexArray(vertexArrayObject);
 	}
 
-	void RenderMesh::Draw(GLuint primitiveGroupIndex) const
+	void RenderMesh::Draw(GLuint primitiveGroupIndex, GLenum mode) const
 	{
 		IndexAttribute group = this->primitiveGroups[primitiveGroupIndex];
 
-		glDrawElements(group.mode, group.count, group.type, (void*)group.offset);
+		glDrawElements(mode, group.count, group.type, (void*)group.offset);
 	}
 
 	void RenderMesh::Unbind() const

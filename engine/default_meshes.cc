@@ -21,7 +21,6 @@ namespace Engine
 		indexBuffer.byteSize = sizeof(indices);
 
 		IndexAttribute indexAttrib;
-		indexAttrib.mode = GL_LINES;
 		indexAttrib.offset = 0;
 		indexAttrib.count = 2;
 		indexAttrib.type = GL_UNSIGNED_BYTE;
@@ -77,7 +76,6 @@ namespace Engine
 		indexBuffer.byteSize = sizeof(indices);
 
 		IndexAttribute indexAttrib;
-		indexAttrib.mode = GL_TRIANGLES;
 		indexAttrib.offset = 0;
 		indexAttrib.count = 6;
 		indexAttrib.type = GL_UNSIGNED_BYTE;
@@ -259,7 +257,6 @@ namespace Engine
 		indexBuffer.byteSize = sizeof(indices);
 
 		IndexAttribute indexAttrib;
-		indexAttrib.mode = GL_TRIANGLES;
 		indexAttrib.offset = 0;
 		indexAttrib.count = 36;
 		indexAttrib.type = GL_UNSIGNED_BYTE;
@@ -411,7 +408,6 @@ namespace Engine
 		indexBuffer.byteSize = sizeof(GLuint) * indices.size();
 
 		IndexAttribute indexAttrib;
-		indexAttrib.mode = GL_TRIANGLES;
 		indexAttrib.offset = 0;
 		indexAttrib.count = indices.size();
 		indexAttrib.type = GL_UNSIGNED_INT;
@@ -590,7 +586,6 @@ namespace Engine
 		indexBuffer.byteSize = sizeof(GLuint) * indices.size();
 
 		IndexAttribute indexAttrib;
-		indexAttrib.mode = GL_TRIANGLES;
 		indexAttrib.offset = 0;
 		indexAttrib.count = indices.size();
 		indexAttrib.type = GL_UNSIGNED_INT;

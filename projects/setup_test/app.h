@@ -4,6 +4,13 @@
 #include "shader.h"
 #include "animation.h"
 
+struct RenderTarget
+{
+	GLuint framebuffer;
+	GLuint texture;
+	GLuint depthBuffer;
+};
+
 class App_SetupTest
 {
 public:
@@ -15,6 +22,9 @@ public:
 	Engine::Bone animSkeleton;
 	Engine::SkeletonBindPose bindPose;
 	Engine::SkeletonAnimationPose animationPose;
+	
+	RenderTarget backfaceRenderTarget;
+	Engine::Shader backfaceShader;
 
 	App_SetupTest();
 
