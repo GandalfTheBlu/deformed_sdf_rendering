@@ -99,6 +99,7 @@ void App_SetupTest::Init()
 		}
 	);
 
+#ifdef BONE_MODE
 	// configure bind pose
 	float falloff = 10.f;
 
@@ -126,7 +127,7 @@ void App_SetupTest::Init()
 	bindSkeleton.GenerateBindPose(bindPose, glm::mat4(1.f));
 
 	bindSkeleton.MakeCopy(animSkeleton);
-
+#endif
 
 	// setup backface rendering shader and framebuffer
 	backfaceShader.Reload(
@@ -200,8 +201,10 @@ void App_SetupTest::UpdateLoop()
 
 	bool showDebugMesh = true;
 	
+#ifdef BONE_MODE
 	Engine::Bone* p_focusedBindBone = &bindSkeleton;
 	Engine::Bone* p_focusedAnimBone = &animSkeleton;
+#endif
 
 	double time0 = glfwGetTime();
 
@@ -291,6 +294,11 @@ void App_SetupTest::UpdateLoop()
 			backfaceShader.SetMat4("u_MVP", &MVP[0][0]);
 			backfaceShader.SetVec3("u_localCameraPos", &localCamPos[0]);
 
+#ifdef KELVINLET_MODE
+			backfaceShader.SetVec3("u_localKelvinletCenter", &kelv.center[0]);
+			backfaceShader.SetVec3("u_localKelvinletForce", &kelv.force[0]);
+			backfaceShader.SetFloat("u_kelvinletSharpness", kelv.sharpness);
+#endif
 #ifdef BONE_MODE
 			for (size_t i = 0; i < bindPose.weightVolumes.size(); i++)
 			{
