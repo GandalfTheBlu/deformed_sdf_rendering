@@ -300,7 +300,7 @@ void main()
 	}
 	else
 	{
-		o_color = vec4(0.25);
+		o_color = vec4(0.25, 0.25, 0.25, 1.);
 		gl_FragDepth = DeformedPointToDepth(Deform(i_undeformedPos));
 	}
 }

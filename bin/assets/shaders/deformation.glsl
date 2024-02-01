@@ -9,7 +9,7 @@ uniform float u_kelvinletSharpness;
 #endif
 
 #ifdef BONE_MODE
-#define MAX_BONES 2
+#define MAX_BONES 3
 struct BoneWeightVolume
 {
 	vec3 startPoint;
@@ -58,38 +58,22 @@ float BoneWeight(vec3 p, int boneIndex)
 
 vec3 LinearBlend(vec3 point)
 {	
-	float weight1 = 0.;
-	float weight2 = 0.;
-	int boneIndex1 = -1;
-	int boneIndex2 = -1;
-
+	float weightSum = 0.;
+	vec3 result = vec3(0.);
+	
 	for(int i=0; i<u_bonesCount; i++)
 	{
 		float weight = BoneWeight(point, i);
-		if(weight > weight1)
-		{
-			weight2 = weight1;
-			boneIndex2 = boneIndex1;
-			weight1 = weight;
-			boneIndex1 = i;
-		}
-		else if(weight > weight2)
-		{
-			weight2 = weight;
-			boneIndex2 = i;
-		}
+		result += weight * vec3(u_boneMatrices[i] * vec4(point, 1.));
+		weightSum += weight;
 	}
-
-	float wSum = weight1 + weight2;
 	
-	if(wSum == 0.)
+	if(weightSum > 0.)
 	{
-		return point;
+		return result * (1. / weightSum);
 	}
 	
-	return (weight1 * vec3(u_boneMatrices[boneIndex1] * vec4(point, 1.)) + 
-			weight2 * vec3(u_boneMatrices[boneIndex2] * vec4(point, 1.))) * 
-			(1. / wSum);
+	return point;
 }
 #endif
 

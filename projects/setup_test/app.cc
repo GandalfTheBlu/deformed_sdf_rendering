@@ -75,8 +75,8 @@ App_SetupTest::App_SetupTest()
 
 void App_SetupTest::Init()
 {
-	window.Init(1000, 800, "deformed sdf");
-	//window.Init(1600, 1200, "deformed sdf");
+	//window.Init(1000, 800, "deformed sdf");
+	window.Init(1600, 1200, "deformed sdf");
 
 	camera.Init(70.f, float(window.Width()) / window.Height(), 0.3f, 500.f);
 
@@ -85,8 +85,8 @@ void App_SetupTest::Init()
 		Sdf,
 		glm::vec3(-1.f, -2.5f, -1.f),
 		glm::vec3(1.f, 2.5f, 1.f),
-		0.25f,
-		glm::length(glm::vec3(0.25f))
+		0.125f,
+		glm::length(glm::vec3(0.125f))
 	);
 	glPatchParameteri(GL_PATCH_VERTICES, 3);
 
@@ -100,16 +100,28 @@ void App_SetupTest::Init()
 	);
 
 	// configure bind pose
-	bindSkeleton.localTransform = Engine::Transform(glm::vec3(0.f, -1.f, 0.f), glm::vec3(0.f), glm::vec3(1.f));
-	bindSkeleton.localWeightVolume.startPoint = glm::vec3(0.f, -1.f, 0.f);
-	bindSkeleton.localWeightVolume.startToEnd = glm::vec3(0.f, 2.f, 0.f);
-	bindSkeleton.localWeightVolume.falloffRate = 10.f;
+	float falloff = 10.f;
 
-	bindSkeleton.AddChild();
-	bindSkeleton.GetChild(0).localTransform = Engine::Transform(glm::vec3(0.f, 1.f, 0.f), glm::vec3(0.f), glm::vec3(1.f));
-	bindSkeleton.GetChild(0).localWeightVolume.startPoint = glm::vec3(0.f, 1.f, 0.f);
-	bindSkeleton.GetChild(0).localWeightVolume.startToEnd = glm::vec3(0.f, 2.f, 0.f);
-	bindSkeleton.GetChild(0).localWeightVolume.falloffRate = 10.f;
+	auto& bone1 = bindSkeleton;
+	bone1.localTransform = Engine::Transform(glm::vec3(0.f, -1.5f, 0.f), glm::vec3(0.f), glm::vec3(1.f));
+	bone1.localWeightVolume.startPoint = glm::vec3(0.f, 0.f, 0.f);
+	bone1.localWeightVolume.startToEnd = glm::vec3(0.f, 1.f, 0.f);
+	bone1.localWeightVolume.falloffRate = falloff;
+
+	bone1.AddChild();
+	auto& bone2 = bone1.GetChild(0);
+	bone2.localTransform = Engine::Transform(glm::vec3(0.f, 1.f, 0.f), glm::vec3(0.f), glm::vec3(1.f));
+	bone2.localWeightVolume.startPoint = glm::vec3(0.f, 0.f, 0.f);
+	bone2.localWeightVolume.startToEnd = glm::vec3(0.f, 1.f, 0.f);
+	bone2.localWeightVolume.falloffRate = falloff;
+
+	bone2.AddChild();
+	auto& bone3 = bone2.GetChild(0);
+	bone3.localTransform = Engine::Transform(glm::vec3(0.f, 1.f, 0.f), glm::vec3(0.f), glm::vec3(1.f));
+	bone3.localWeightVolume.startPoint = glm::vec3(0.f, 0.f, 0.f);
+	bone3.localWeightVolume.startToEnd = glm::vec3(0.f, 1.f, 0.f);
+	bone3.localWeightVolume.falloffRate = falloff;
+
 
 	bindSkeleton.GenerateBindPose(bindPose, glm::mat4(1.f));
 
