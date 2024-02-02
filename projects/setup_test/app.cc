@@ -4,6 +4,7 @@
 #include "file_watcher.h"
 #include "input.h"
 #include "default_meshes.h"
+#include "transform.h"
 
 glm::vec3 Fold(const glm::vec3& p, const glm::vec3& normal)
 {
@@ -156,6 +157,7 @@ void SetKelvinletShaderData(Engine::Shader& shader, const Kelvinlet& kelvinlet, 
 	}
 }
 
+#ifdef SKELETON_MODE
 void SetSkeletonShaderData(
 	Engine::Shader& shader, 
 	const Engine::SkeletonBindPose& bindPose, 
@@ -185,6 +187,7 @@ void SetSkeletonShaderData(
 	}
 	shader.SetInt("u_bonesCount", (GLint)bindPose.inverseWorldTransforms.size());
 }
+#endif
 
 void App_SetupTest::DrawSDf(bool applyDeformation, bool showDebugMesh)
 {

@@ -1,68 +1,103 @@
 #pragma once
-#include <matrix.hpp>
+#include "transform.h"
 #include <vector>
 
 namespace Engine
 {
-	struct BoneWeightVolume
+	// used for describing the weight of a joint analytically
+	struct JointWeightVolume
 	{
 		glm::vec3 startPoint;
 		glm::vec3 startToEnd;
 		float lengthSquared;
 		float falloffRate;
 
-		BoneWeightVolume();
-		BoneWeightVolume(const glm::vec3& _startPoint, const glm::vec3& _startToEnd, float _falloffRate);
+		JointWeightVolume();
+		JointWeightVolume(const glm::vec3& _startPoint, const glm::vec3& _startToEnd, float _fallofRate);
 	};
 
-	struct SkeletonBindPose
+	// derived data generated when posing the skeleton in a bind pose
+	struct BindPose
 	{
-		// each bone is represented by its inverse world transform and
-		// its weight volume (within which its weight is > 0)
-		std::vector<glm::mat4> inverseWorldTransforms;
-		std::vector<BoneWeightVolume> weightVolumes;
+		glm::mat4* p_inverseWorldMatrices;
+		JointWeightVolume* p_worldWeightVolumes;
+
+		BindPose();
+		~BindPose();
+
+		void Init(size_t jointCount);
 	};
 
-	struct SkeletonAnimationPose
+	// derived data generated when interpolating between keyframes in an animation
+	struct AnimationPose
 	{
-		// each bone is represented by its deformed world transform
-		std::vector<glm::mat4> worldTransforms;
+		glm::mat4* p_deformationMatrices;// = jointAnimatedWorldMatrix * jointBindInverseWorldMatrix
+
+		AnimationPose();
+		~AnimationPose();
+
+		void Init(size_t jointCount);
 	};
 
-	struct Transform
-	{
-		glm::vec3 position;
-		glm::vec3 eulerAngles;
-		glm::vec3 scale;
-
-		Transform();
-		Transform(const glm::vec3& _position, const glm::vec3& _eulerAngles, const glm::vec3& _scale);
-
-		glm::mat4 Matrix() const;
-	};
-
-	class Bone
+	class Joint
 	{
 	private:
-		std::vector<Bone*> children;
+		struct Skeleton* p_skeleton;
+		Joint* p_parent;
+		std::vector<Joint*> children;
 
 	public:
-		Bone* p_parent;
-		Transform localTransform;// relative to parent transform
-		BoneWeightVolume localWeightVolume;// defined in local space
+		Transform localTransform;// relative to parent
 
-		Bone();
-		Bone(Bone* _p_parent);
-		~Bone();
+		Joint(Skeleton* _p_skeleton, Joint* _p_parent);
+		~Joint();
 
+		bool HasParent() const;
+		Joint& GetParent();
+		size_t ChildCount() const;
+		Joint& GetChild(size_t index);
 		void AddChild();
-		void RemoveChild(size_t childIndex);
-		size_t ChildrenCount();
-		Bone& GetChild(size_t childIndex);
+		void RemoveChild(size_t index);
+	};
 
-		void GenerateBindPose(SkeletonBindPose& outData, const glm::mat4& parentWorldTransform);
-		void GenerateAnimationPose(SkeletonAnimationPose& outData, const glm::mat4& parentWorldTransform);
+	struct Skeleton
+	{
+		size_t jointCount;
+		Joint root;
 
-		void MakeCopy(Bone& outCopy);
+		Skeleton();
+	};
+
+	// collection of joint transforms describing an animation pose
+	struct Keyframe
+	{
+		float timestamp;
+		Transform* p_transformBuffer;
+
+		Keyframe();
+		~Keyframe();
+
+		void Init(size_t jointCount);
+	};
+
+	class Animation
+	{
+	private:
+		BindPose bindPose;
+		size_t jointCount;
+		std::vector<Keyframe> keyframes;
+
+		size_t GetClosestLeftKeyframeIndex(float timestamp);
+
+	public:
+		Animation();
+		
+		void Init(Skeleton& skeleton);
+		void InsertKeyframe(float timestamp);
+		void RemoveKeyframe(size_t index);
+		size_t KeyframeCount() const;
+		Keyframe& GetKeyframe(size_t index);
+		void SetKeyframe(Skeleton& skeleton, size_t keyframeIndex);
+		void SetAnimationPose(AnimationPose& pose, float timestamp);
 	};
 }

@@ -4,8 +4,8 @@
 #include "shader.h"
 #include "animation.h"
 
-//#define KELVINLET_MODE
-#define SKELETON_MODE
+#define KELVINLET_MODE
+//#define SKELETON_MODE
 
 struct RenderTarget
 {

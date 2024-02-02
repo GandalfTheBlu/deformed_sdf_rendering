@@ -21,6 +21,8 @@ SET(engine_files
 	camera.cc
 	marching_cubes.h
 	marching_cubes.cc
+	transform.h
+	transform.cc
 	animation.h
 	animation.cc
 )

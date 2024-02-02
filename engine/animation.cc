@@ -3,117 +3,228 @@
 
 namespace Engine
 {
-	BoneWeightVolume::BoneWeightVolume() :
+	JointWeightVolume::JointWeightVolume() :
 		startPoint(0.f),
 		startToEnd(0.f),
 		lengthSquared(0.f),
 		falloffRate(0.f)
 	{}
 
-	BoneWeightVolume::BoneWeightVolume(const glm::vec3& _startPoint, const glm::vec3& _startToEnd, float _falloffRate) :
+	JointWeightVolume::JointWeightVolume(const glm::vec3& _startPoint, const glm::vec3& _startToEnd, float _fallofRate) :
 		startPoint(_startPoint),
 		startToEnd(_startToEnd),
-		falloffRate(_falloffRate)
+		lengthSquared(glm::dot(_startToEnd, _startToEnd)),
+		falloffRate(_fallofRate)
+	{}
+
+	BindPose::BindPose() :
+		p_inverseWorldMatrices(nullptr),
+		p_worldWeightVolumes(nullptr)
+	{}
+
+	BindPose::~BindPose()
 	{
-		lengthSquared = glm::dot(startToEnd, startToEnd);
+		delete[] p_inverseWorldMatrices;
+		delete[] p_worldWeightVolumes;
+	}
+
+	void BindPose::Init(size_t jointCount)
+	{
+		p_inverseWorldMatrices = new glm::mat4[jointCount]();
+		p_worldWeightVolumes = new JointWeightVolume[jointCount]();
 	}
 
 
-	Transform::Transform() :
-		position(0.f),
-		eulerAngles(0.f),
-		scale(1.f)
+	AnimationPose::AnimationPose() :
+		p_deformationMatrices(nullptr)
 	{}
 
-	Transform::Transform(const glm::vec3& _position, const glm::vec3& _eulerAngles, const glm::vec3& _scale) :
-		position(_position),
-		eulerAngles(_eulerAngles),
-		scale(_scale)
-	{}
-
-	glm::mat4 Transform::Matrix() const
+	AnimationPose::~AnimationPose()
 	{
-		glm::mat4 T(1.f);
+		delete[] p_deformationMatrices;
+	}
 
-		T[0][0] = scale.x;
-		T[1][1] = scale.y;
-		T[2][2] = scale.z;
-
-		T = glm::mat4_cast(glm::quat(eulerAngles)) * T;
-
-		T[3] = glm::vec4(position, 1.f);
-
-		return T;
+	void AnimationPose::Init(size_t jointCount)
+	{
+		p_deformationMatrices = new glm::mat4[jointCount]();
 	}
 
 
-	Bone::Bone() :
-		p_parent(nullptr)
-	{}
-
-	Bone::Bone(Bone* _p_parent) :
+	Joint::Joint(Skeleton* _p_skeleton, Joint* _p_parent) :
+		p_skeleton(_p_skeleton),
 		p_parent(_p_parent)
 	{}
 
-	Bone::~Bone()
+	Joint::~Joint()
 	{
-		for (Bone* p_bone : children)
-			delete p_bone;
+		for (Joint* p_child : children)
+			delete p_child;
 	}
 
-	void Bone::AddChild()
+	bool Joint::HasParent() const
 	{
-		children.push_back(new Bone(this));
+		return p_parent != nullptr;
 	}
 
-	void Bone::RemoveChild(size_t childIndex)
+	Joint& Joint::GetParent()
 	{
-		delete children[childIndex];
-		children.erase(children.begin() + childIndex);
+		assert(p_parent != nullptr);
+		return *p_parent;
 	}
 
-	size_t Bone::ChildrenCount()
+	size_t Joint::ChildCount() const
 	{
 		return children.size();
 	}
 
-	Bone& Bone::GetChild(size_t childIndex)
+	Joint& Joint::GetChild(size_t index)
 	{
-		return *children[childIndex];
+		return *children[index];
 	}
 
-	void Bone::GenerateBindPose(SkeletonBindPose& outData, const glm::mat4& parentWorldTransform)
+	void Joint::AddChild()
 	{
-		glm::mat4 worldTransform = parentWorldTransform * localTransform.Matrix();
-		glm::vec3 worldStartPoint = glm::vec3(worldTransform * glm::vec4(localWeightVolume.startPoint, 1.f));
-		glm::vec3 worldStarToEnd = glm::vec3(worldTransform * glm::vec4(localWeightVolume.startToEnd, 0.f));
-
-		outData.inverseWorldTransforms.push_back(glm::inverse(worldTransform));
-		outData.weightVolumes.emplace_back(worldStartPoint, worldStarToEnd, localWeightVolume.falloffRate);
-
-		for (Bone* p_child : children)
-			p_child->GenerateBindPose(outData, worldTransform);
+		children.push_back(new Joint(p_skeleton, this));
+		p_skeleton->jointCount++;
 	}
 
-	void Bone::GenerateAnimationPose(SkeletonAnimationPose& outData, const glm::mat4& parentWorldTransform)
+	void Joint::RemoveChild(size_t index)
 	{
-		glm::mat4 worldTransform = parentWorldTransform * localTransform.Matrix();
-		outData.worldTransforms.push_back(worldTransform);
-
-		for (Bone* p_child : children)
-			p_child->GenerateAnimationPose(outData, worldTransform);
+		delete children[index];
+		children.erase(children.begin() + index);
+		p_skeleton->jointCount--;
 	}
 
-	void Bone::MakeCopy(Bone& outCopy)
+
+	Keyframe::Keyframe() :
+		p_transformBuffer(nullptr)
+	{}
+
+	Keyframe::~Keyframe()
 	{
-		for (Bone* p_child : children)
+		delete[] p_transformBuffer;
+	}
+
+	void Keyframe::Init(size_t jointCount)
+	{
+		p_transformBuffer = new Transform[jointCount]();
+	}
+
+
+	Skeleton::Skeleton() :
+		jointCount(0),
+		root(this, nullptr)
+	{}
+
+
+	Animation::Animation() :
+		jointCount(0)
+	{}
+
+	void Animation::Init(Skeleton& skeleton)
+	{
+		InsertKeyframe(0.f);
+		InsertKeyframe(1.f);
+		
+	}
+
+	void Animation::InsertKeyframe(float timestamp)
+	{
+		assert(timestamp >= 0.f && timestamp <= 1.f);
+
+		if (keyframes.size() == 0)
 		{
-			Bone* p_childCopy = new Bone(&outCopy);
-			outCopy.children.push_back(p_childCopy);
-			p_child->MakeCopy(*p_childCopy);
+			keyframes.emplace_back();
+			keyframes.back().Init(jointCount);
+			return;
 		}
 
-		outCopy.localTransform = localTransform;
-		outCopy.localWeightVolume = localWeightVolume;
+		for (size_t i = 1; i < keyframes.size(); i++)
+		{
+			if (keyframes[i].timestamp == timestamp)
+				break;// avoid duplicate
+			
+			if (keyframes[i].timestamp > timestamp)
+			{
+				keyframes.emplace(keyframes.begin() + i);
+				keyframes[i].Init(jointCount);
+				break;
+			}
+		}
+	}
+
+	size_t Animation::GetClosestLeftKeyframeIndex(float timestamp)
+	{
+		assert(timestamp >= 0.f && timestamp <= 1.f && keyframes.size() > 0);
+
+		for (size_t i = 1; i < keyframes.size(); i++)
+		{
+			if (keyframes[i].timestamp > timestamp)
+				return i - 1;
+		}
+
+		return keyframes.size() - 1;
+	}
+
+	void Animation::RemoveKeyframe(size_t index)
+	{
+		keyframes.erase(keyframes.begin() + index);
+	}
+
+	size_t Animation::KeyframeCount() const
+	{
+		return keyframes.size();
+	}
+
+	Keyframe& Animation::GetKeyframe(size_t index)
+	{
+		return keyframes[index];
+	}
+
+	struct KeyframeBuilder
+	{
+		Keyframe* p_keyframe;
+		size_t transformCount;
+	};
+
+	void BuildKeyframe(Joint& startJoint, const Transform& parentWorldTransform, KeyframeBuilder& builder)
+	{
+		Transform worldTransform = Multiply(parentWorldTransform, startJoint.localTransform);
+		builder.p_keyframe->p_transformBuffer[builder.transformCount++] = worldTransform;
+
+		for (size_t i = 0; i < startJoint.ChildCount(); i++)
+			BuildKeyframe(startJoint.GetChild(i), worldTransform, builder);
+	}
+
+	void Animation::SetKeyframe(Skeleton& skeleton, size_t keyframeIndex)
+	{
+		KeyframeBuilder builder{ &GetKeyframe(keyframeIndex), 0 };
+		BuildKeyframe(skeleton.root, Transform(), builder);
+	}
+
+	void Animation::SetAnimationPose(AnimationPose& pose, float timestamp)
+	{
+		size_t leftIndex = GetClosestLeftKeyframeIndex(timestamp);
+		size_t rightIndex = leftIndex + 1;
+
+		if (leftIndex == keyframes.size() - 1)
+		{
+			rightIndex = leftIndex;
+			leftIndex = 0;
+		}
+
+		Keyframe& leftKeyframe = GetKeyframe(leftIndex);
+		Keyframe& rightKeyframe = GetKeyframe(rightIndex);
+		float keyframeTimeDiff = glm::abs(rightKeyframe.timestamp - leftKeyframe.timestamp);
+		float alpha = (timestamp - glm::min(leftKeyframe.timestamp, rightKeyframe.timestamp)) / keyframeTimeDiff;
+
+		for (size_t i = 0; i < jointCount; i++)
+		{
+			pose.p_deformationMatrices[i] = Lerp(
+				leftKeyframe.p_transformBuffer[i],
+				rightKeyframe.p_transformBuffer[i],
+				alpha
+			).Matrix() * bindPose.p_inverseWorldMatrices[i];
+		}
 	}
 }
