@@ -1,10 +1,8 @@
 #include "app.h"
 #include <glm.hpp>
-#include <gtx/quaternion.hpp>
 #include "file_watcher.h"
 #include "input.h"
 #include "default_meshes.h"
-#include "transform.h"
 
 glm::vec3 Fold(const glm::vec3& p, const glm::vec3& normal)
 {
@@ -157,11 +155,11 @@ void SetKelvinletShaderData(Engine::Shader& shader, const Kelvinlet& kelvinlet, 
 	}
 }
 
-#ifdef SKELETON_MODE
 void SetSkeletonShaderData(
-	Engine::Shader& shader, 
-	const Engine::SkeletonBindPose& bindPose, 
-	const Engine::SkeletonAnimationPose& animationPose,
+	Engine::Shader& shader,
+	size_t jointCount,
+	const Engine::BindPose& bindPose,
+	const Engine::AnimationPose& animationPose,
 	bool applyDeformation
 )
 {
@@ -171,23 +169,25 @@ void SetSkeletonShaderData(
 		return;
 	}
 
-	for (size_t i = 0; i < bindPose.weightVolumes.size(); i++)
+	for (size_t i = 0; i < jointCount; i++)
 	{
 		std::string indexStr(std::to_string(i));
 		std::string boneWeightName("u_boneWeightVolumes[" + indexStr + "]");
 		std::string boneMatrixName("u_boneMatrices[" + indexStr + "]");
 
-		glm::mat4 boneMatrix = animationPose.worldTransforms[i] * bindPose.inverseWorldTransforms[i];
+		float lengthSquared = glm::dot(
+			bindPose.p_worldWeightVolumes[i].startToEnd[0],
+			bindPose.p_worldWeightVolumes[i].startToEnd[0]
+		);
 
-		shader.SetVec3(boneWeightName + ".startPoint", &bindPose.weightVolumes[i].startPoint[0]);
-		shader.SetVec3(boneWeightName + ".startToEnd", &bindPose.weightVolumes[i].startToEnd[0]);
-		shader.SetFloat(boneWeightName + ".lengthSquared", bindPose.weightVolumes[i].lengthSquared);
-		shader.SetFloat(boneWeightName + ".falloffRate", bindPose.weightVolumes[i].falloffRate);
-		shader.SetMat4(boneMatrixName, &boneMatrix[0][0]);
+		shader.SetVec3(boneWeightName + ".startPoint", &bindPose.p_worldWeightVolumes[i].startPoint[0]);
+		shader.SetVec3(boneWeightName + ".startToEnd", &bindPose.p_worldWeightVolumes[i].startToEnd[0]);
+		shader.SetFloat(boneWeightName + ".lengthSquared", lengthSquared);
+		shader.SetFloat(boneWeightName + ".falloffRate", bindPose.p_worldWeightVolumes[i].falloffRate);
+		shader.SetMat4(boneMatrixName, &animationPose.p_deformationMatrices[i][0][0]);
 	}
-	shader.SetInt("u_bonesCount", (GLint)bindPose.inverseWorldTransforms.size());
+	shader.SetInt("u_bonesCount", (GLint)jointCount);
 }
-#endif
 
 void App_SetupTest::DrawSDf(bool applyDeformation, bool showDebugMesh)
 {
@@ -213,12 +213,10 @@ void App_SetupTest::DrawSDf(bool applyDeformation, bool showDebugMesh)
 	backfaceShader.SetMat4("u_MVP", &MVP[0][0]);
 	backfaceShader.SetVec3("u_localCameraPos", &localCamPos[0]);
 
-#ifdef KELVINLET_MODE
-	SetKelvinletShaderData(backfaceShader, kelvinlet, applyDeformation);
-#endif
-#ifdef SKELETON_MODE
-	SetSkeletonShaderData(backfaceShader, bindPose, animationPose, applyDeformation);
-#endif
+	//SetKelvinletShaderData(backfaceShader, kelvinlet, applyDeformation);
+
+	SetSkeletonShaderData(backfaceShader, jointCount, bindPose, animationPose, applyDeformation);
+
 	
 	sdfMesh.Draw(0, GL_PATCHES);
 
@@ -240,12 +238,10 @@ void App_SetupTest::DrawSDf(bool applyDeformation, bool showDebugMesh)
 	glActiveTexture(GL_TEXTURE0);
 	glBindTexture(GL_TEXTURE_2D, backfaceRenderTarget.texture);
 
-#ifdef KELVINLET_MODE
-	SetKelvinletShaderData(sdfShader, kelvinlet, applyDeformation);
-#endif
-#ifdef SKELETON_MODE
-	SetSkeletonShaderData(sdfShader, bindPose, animationPose, applyDeformation);
-#endif
+	//SetKelvinletShaderData(sdfShader, kelvinlet, applyDeformation);
+
+	SetSkeletonShaderData(sdfShader, jointCount, bindPose, animationPose, applyDeformation);
+
 
 	sdfMesh.Draw(0, GL_PATCHES);
 
@@ -265,8 +261,7 @@ void App_SetupTest::DrawSDf(bool applyDeformation, bool showDebugMesh)
 	
 }
 
-#ifdef SKELETON_MODE
-void App_SetupTest::DrawBones(Engine::Bone& startBone, const glm::mat4& parentWorldTransform, const glm::mat4& VP)
+/*void App_SetupTest::DrawBones(Engine::Bone& startBone, const glm::mat4& parentWorldTransform, const glm::mat4& VP)
 {
 	glm::mat4 worldTransform = parentWorldTransform * startBone.localTransform.Matrix();
 	glm::mat4 M(0.1f);
@@ -298,8 +293,7 @@ void App_SetupTest::DrawSkeleton(Engine::Bone& skeleton)
 	boneShader.StopUsing();
 	glDepthMask(1);
 	glEnable(GL_DEPTH_TEST);
-}
-#endif
+}*/
 
 void App_SetupTest::Init()
 {
@@ -338,11 +332,6 @@ void App_SetupTest::Init()
 		}
 	);
 
-#ifdef SKELETON_MODE
-	Engine::GenerateUnitCube(boneMesh);
-	boneShader.Reload("assets/shaders/flat_vert.glsl", "assets/shaders/flat_frag.glsl");
-#endif
-
 	glGenFramebuffers(1, &backfaceRenderTarget.framebuffer);
 	glBindFramebuffer(GL_FRAMEBUFFER, backfaceRenderTarget.framebuffer);
 
@@ -368,36 +357,23 @@ void App_SetupTest::Init()
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);
 	glBindTexture(GL_TEXTURE_2D, 0);
 
-#ifdef SKELETON_MODE
 
-	// configure bind pose
-	float falloff = 10.f;
+	Engine::BuildingSkeleton bs;
+	bs.root.AddChild();
+	bs.root.children[0]->localTransform.position.y = 1.f;
+	Engine::Skeleton sk;
+	bs.BuildSkeletonAndBindPose(sk, bindPose);
+	jointCount = sk.jointCount;
 
-	auto& bone1 = bindSkeleton;
-	bone1.localTransform = Engine::Transform(glm::vec3(0.f, -1.5f, 0.f), glm::vec3(0.f), glm::vec3(1.f));
-	bone1.localWeightVolume.startPoint = glm::vec3(0.f, 0.f, 0.f);
-	bone1.localWeightVolume.startToEnd = glm::vec3(0.f, 1.f, 0.f);
-	bone1.localWeightVolume.falloffRate = falloff;
+	Engine::BuildingAnimation ba;
+	ba.InitBorderKeyframes(sk);
+	size_t middleSkIndex = 0;
+	ba.AddKeyframe(0.5f, middleSkIndex);
+	ba.keyframes[middleSkIndex]->skeleton.root.p_children[0].localTransform.rotation = glm::vec3(1.f, 0.f, 0.f);
+	ba.BuildAnimation(animation);
 
-	bone1.AddChild();
-	auto& bone2 = bone1.GetChild(0);
-	bone2.localTransform = Engine::Transform(glm::vec3(0.f, 1.f, 0.f), glm::vec3(0.f), glm::vec3(1.f));
-	bone2.localWeightVolume.startPoint = glm::vec3(0.f, 0.f, 0.f);
-	bone2.localWeightVolume.startToEnd = glm::vec3(0.f, 1.f, 0.f);
-	bone2.localWeightVolume.falloffRate = falloff;
-
-	bone2.AddChild();
-	auto& bone3 = bone2.GetChild(0);
-	bone3.localTransform = Engine::Transform(glm::vec3(0.f, 1.f, 0.f), glm::vec3(0.f), glm::vec3(1.f));
-	bone3.localWeightVolume.startPoint = glm::vec3(0.f, 0.f, 0.f);
-	bone3.localWeightVolume.startToEnd = glm::vec3(0.f, 1.f, 0.f);
-	bone3.localWeightVolume.falloffRate = falloff;
-
-
-	bindSkeleton.GenerateBindPose(bindPose, glm::mat4(1.f));
-
-	bindSkeleton.MakeCopy(animSkeleton);
-#endif
+	animationPose.Allocate(jointCount);
+	animationPlayer.Start(10.f, true);
 }
 
 void App_SetupTest::UpdateLoop()
@@ -414,12 +390,10 @@ void App_SetupTest::UpdateLoop()
 	bool showDebugMesh = true;
 	bool applyDeformation = true;
 
-#ifdef SKELETON_MODE
-	bool editBindPose = false;
-	bool showBones = true;
-	Engine::Bone* p_focusedBindBone = &bindSkeleton;
-	Engine::Bone* p_focusedAnimBone = &animSkeleton;
-#endif
+	Engine::AnimationContext context;
+	context.jointCount = jointCount;
+	context.p_sharedBindPose = &bindPose;
+	context.p_sharedAnimation = &animation;
 
 	double time0 = glfwGetTime();
 
@@ -459,25 +433,10 @@ void App_SetupTest::UpdateLoop()
 			}
 		}
 
-#ifdef SKELETON_MODE
-		if (!editBindPose)
-		{
-			animationPose.worldTransforms.clear();
-			animSkeleton.GenerateAnimationPose(animationPose, glm::mat4(1.f));
-		}
-#endif
+		animationPlayer.Update(deltaTime, context, animationPose);
 
 		DrawSDf(applyDeformation, showDebugMesh);
-		
-#ifdef SKELETON_MODE
-		if (showBones)
-		{
-			if (editBindPose)
-				DrawSkeleton(bindSkeleton);
-			else
-				DrawSkeleton(animSkeleton);
-		}
-#endif
+
 
 		ImGui::Begin("Menu");
 		ImGui::Text("fps: %f", 1.f / deltaTime);
@@ -486,73 +445,11 @@ void App_SetupTest::UpdateLoop()
 		if (ImGui::RadioButton("Show mesh", showDebugMesh))
 			showDebugMesh = !showDebugMesh;
 
-#ifdef SKELETON_MODE
-		if (ImGui::RadioButton("Show bones", showBones))
-			showBones = !showBones;
-#endif
-
 		ImGui::NewLine();
 
-#ifdef KELVINLET_MODE
-		ImGui::DragFloat3("Center", &kelvinlet.center.x, 0.03f, -10.f, 10.f, "%.2f", 1.f);
+		/*ImGui::DragFloat3("Center", &kelvinlet.center.x, 0.03f, -10.f, 10.f, "%.2f", 1.f);
 		ImGui::DragFloat3("Force", &kelvinlet.force.x, 0.03f, -10.f, 10.f, "%.2f", 1.f);
-		ImGui::DragFloat("Sharpness", &kelvinlet.sharpness, 0.03f, 1.f, 16.f, "%.2f", 1.f);
-#endif
-#ifdef SKELETON_MODE
-		if (ImGui::RadioButton("Edit bind pose", editBindPose))
-		{
-			applyDeformation = !applyDeformation;
-			editBindPose = !editBindPose;
-			if (!editBindPose)
-			{
-				bindPose.inverseWorldTransforms.clear();
-				bindPose.weightVolumes.clear();
-				bindSkeleton.GenerateBindPose(bindPose, glm::mat4(1.f));
-			}
-		}
-
-		if (editBindPose)
-		{
-			ImGui::NewLine();
-			ImGui::Text("Bone bind transform:");
-			ImGui::DragFloat3("Position", &p_focusedBindBone->localTransform.position[0], 0.03f, -10.f, 10.f, "%.2f", 1.f);
-			ImGui::DragFloat3("Euler angles", &p_focusedBindBone->localTransform.eulerAngles[0], 0.03f, -3.f, 3.f, "%.2f", 1.f);
-			ImGui::DragFloat3("Scale", &p_focusedBindBone->localTransform.scale[0], 0.03f, 0.1f, 10.f, "%.2f", 1.f);
-			if (ImGui::Button("Reset"))
-			{
-				p_focusedBindBone->localTransform = Engine::Transform();
-			}
-		}
-		else
-		{
-			ImGui::NewLine();
-			ImGui::Text("Bone animation transform:");
-			ImGui::DragFloat3("Position", &p_focusedAnimBone->localTransform.position[0], 0.03f, -10.f, 10.f, "%.2f", 1.f);
-			ImGui::DragFloat3("Euler angles", &p_focusedAnimBone->localTransform.eulerAngles[0], 0.03f, -3.f, 3.f, "%.2f", 1.f);
-			ImGui::DragFloat3("Scale", &p_focusedAnimBone->localTransform.scale[0], 0.03f, 0.1f, 10.f, "%.2f", 1.f);
-			if (ImGui::Button("Reset"))
-			{
-				p_focusedAnimBone->localTransform = p_focusedBindBone->localTransform;
-			}
-		}
-
-		for (size_t i = 0; i < p_focusedBindBone->ChildrenCount(); i++)
-		{
-			std::string btnName("Select child " + std::to_string(i));
-			if (ImGui::Button(btnName.c_str()))
-			{
-				p_focusedBindBone = &p_focusedBindBone->GetChild(i);
-				p_focusedAnimBone = &p_focusedAnimBone->GetChild(i);
-				break;
-			}
-		}
-
-		if (p_focusedBindBone->p_parent != nullptr && ImGui::Button("Select parent"))
-		{
-			p_focusedBindBone = p_focusedBindBone->p_parent;
-			p_focusedAnimBone = p_focusedAnimBone->p_parent;
-		}
-#endif
+		ImGui::DragFloat("Sharpness", &kelvinlet.sharpness, 0.03f, 1.f, 16.f, "%.2f", 1.f);*/
 
 		ImGui::End();
 		

@@ -4,9 +4,6 @@
 #include "shader.h"
 #include "animation.h"
 
-#define KELVINLET_MODE
-//#define SKELETON_MODE
-
 struct RenderTarget
 {
 	GLuint framebuffer;
@@ -50,27 +47,16 @@ public:
 	Engine::Shader backfaceShader;
 	RenderTarget backfaceRenderTarget;
 
-#ifdef KELVINLET_MODE
-	Kelvinlet kelvinlet;
-#endif
+	size_t jointCount;
+	Engine::BindPose bindPose;
+	Engine::AnimationPose animationPose;
+	Engine::Animation animation;
+	Engine::AnimationPlayer animationPlayer;
 
-#ifdef SKELETON_MODE
-	Engine::Bone bindSkeleton;
-	Engine::Bone animSkeleton;
-	Engine::SkeletonBindPose bindPose;
-	Engine::SkeletonAnimationPose animationPose;
-	Engine::RenderMesh boneMesh;
-	Engine::Shader boneShader;
-#endif
 	App_SetupTest();
 
 	void HandleInput(float deltaTime);
 	void DrawSDf(bool applyDeformation, bool showDebugMesh);
-
-#ifdef SKELETON_MODE
-	void DrawBones(Engine::Bone& startBone, const glm::mat4& parentWorldTransform, const glm::mat4& VP);
-	void DrawSkeleton(Engine::Bone& skeleton);
-#endif
 
 	void Init();
 	void UpdateLoop();
