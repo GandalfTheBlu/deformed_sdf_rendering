@@ -146,7 +146,8 @@ namespace Engine
 	Joint::Joint() :
 		p_parent(nullptr),
 		childCount(0),
-		p_children(nullptr)
+		p_children(nullptr),
+		eulerAngles(0.f)
 	{}
 
 	Joint::~Joint()
@@ -188,7 +189,8 @@ namespace Engine
 
 	BuildingJoint::BuildingJoint(BuildingSkeleton* _p_skeleton, BuildingJoint* _p_parent) :
 		p_skeleton(_p_skeleton),
-		p_parent(_p_parent)
+		p_parent(_p_parent),
+		eulerAngles(0.f)
 	{}
 
 	BuildingJoint::~BuildingJoint()
@@ -236,7 +238,7 @@ namespace Engine
 		bindPose.p_inverseWorldMatrices[inoutIndex] = glm::inverse(worldTransform);
 		JointWeightVolume& weightVolume = bindPose.p_worldWeightVolumes[inoutIndex];
 		weightVolume.startPoint = glm::vec3(worldTransform * glm::vec4(startBuildingJoint.weightVolume.startPoint, 1.f));
-		weightVolume.startToEnd = glm::vec3(worldTransform * glm::vec4(startBuildingJoint.weightVolume.startToEnd, 0.f));
+		weightVolume.startToEnd = glm::vec3(parentWorldTransform * glm::vec4(startBuildingJoint.weightVolume.startToEnd, 0.f));
 		weightVolume.falloffRate = startBuildingJoint.weightVolume.falloffRate;
 
 		for (size_t i = 0; i < startBuildingJoint.children.size(); i++)
@@ -332,25 +334,6 @@ namespace Engine
 		keyframes.erase(keyframes.begin() + index);
 	}
 
-	void BuildingAnimation::GetSkeletonPose(float time, Skeleton& skeleton)
-	{
-		for (size_t i = 1; i < keyframes.size(); i++)
-		{
-			if (keyframes[i]->timestamp >= time)
-			{
-				float alpha = (time - keyframes[i - 1]->timestamp) /
-					(keyframes[i]->timestamp - keyframes[i - 1]->timestamp);
-				InterpolateJoints(
-					keyframes[i-1]->skeleton.root, 
-					keyframes[i]->skeleton.root, 
-					skeleton.root, 
-					alpha
-				);
-				break;
-			}
-		}
-	}
-
 	void InterpolateAnimationPoses(
 		const Joint& startLeftJoint, 
 		const Joint& startRightJoint, 
@@ -385,7 +368,11 @@ namespace Engine
 		}
 	}
 
-	void BuildingAnimation::GetAnimationPose(float time, const BindPose& bindPose, AnimationPose& animationPose)
+	void BuildingAnimation::GetAnimationPose(
+		float time, 
+		const BindPose& bindPose, 
+		AnimationPose& animationPose
+	) const
 	{
 		for (size_t i = 1; i < keyframes.size(); i++)
 		{

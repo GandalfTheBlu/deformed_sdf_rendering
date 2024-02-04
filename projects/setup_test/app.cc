@@ -95,7 +95,11 @@ Kelvinlet::Kelvinlet() :
 {}
 
 
-App_SetupTest::App_SetupTest()
+App_SetupTest::App_SetupTest() :
+	showDebugMesh(true),
+	currentKeyframeTime(0.f),
+	newAnimationDuration(5.f),
+	newAnimationLoop(true)
 {}
 
 void App_SetupTest::HandleInput(float deltaTime)
@@ -156,19 +160,12 @@ void SetKelvinletShaderData(Engine::Shader& shader, const Kelvinlet& kelvinlet, 
 }
 
 void SetSkeletonShaderData(
-	Engine::Shader& shader,
+	Engine::Shader& shader, 
 	size_t jointCount,
-	const Engine::BindPose& bindPose,
-	const Engine::AnimationPose& animationPose,
-	bool applyDeformation
+	const Engine::BindPose* p_bindPose, 
+	const Engine::AnimationPose* p_animationPose
 )
 {
-	if (!applyDeformation)
-	{
-		shader.SetInt("u_bonesCount", 0);
-		return;
-	}
-
 	for (size_t i = 0; i < jointCount; i++)
 	{
 		std::string indexStr(std::to_string(i));
@@ -176,20 +173,20 @@ void SetSkeletonShaderData(
 		std::string boneMatrixName("u_boneMatrices[" + indexStr + "]");
 
 		float lengthSquared = glm::dot(
-			bindPose.p_worldWeightVolumes[i].startToEnd[0],
-			bindPose.p_worldWeightVolumes[i].startToEnd[0]
+			p_bindPose->p_worldWeightVolumes[i].startToEnd,
+			p_bindPose->p_worldWeightVolumes[i].startToEnd
 		);
 
-		shader.SetVec3(boneWeightName + ".startPoint", &bindPose.p_worldWeightVolumes[i].startPoint[0]);
-		shader.SetVec3(boneWeightName + ".startToEnd", &bindPose.p_worldWeightVolumes[i].startToEnd[0]);
+		shader.SetVec3(boneWeightName + ".startPoint", &p_bindPose->p_worldWeightVolumes[i].startPoint[0]);
+		shader.SetVec3(boneWeightName + ".startToEnd", &p_bindPose->p_worldWeightVolumes[i].startToEnd[0]);
 		shader.SetFloat(boneWeightName + ".lengthSquared", lengthSquared);
-		shader.SetFloat(boneWeightName + ".falloffRate", bindPose.p_worldWeightVolumes[i].falloffRate);
-		shader.SetMat4(boneMatrixName, &animationPose.p_deformationMatrices[i][0][0]);
+		shader.SetFloat(boneWeightName + ".falloffRate", p_bindPose->p_worldWeightVolumes[i].falloffRate);
+		shader.SetMat4(boneMatrixName, &p_animationPose->p_deformationMatrices[i][0][0]);
 	}
 	shader.SetInt("u_bonesCount", (GLint)jointCount);
 }
 
-void App_SetupTest::DrawSDf(bool applyDeformation, bool showDebugMesh)
+void App_SetupTest::DrawSDf()
 {
 	glm::mat4 VP = flyCam.camera.CalcP() * flyCam.camera.CalcV(flyCam.transform);
 	glm::mat4 M(1.f);
@@ -199,6 +196,24 @@ void App_SetupTest::DrawSDf(bool applyDeformation, bool showDebugMesh)
 	glm::vec3 localCamPos = invM * flyCam.transform[3];
 	float pixelRadius = glm::length(glm::vec2(2.f / window.Width(), 2.f / window.Height()));
 	glm::vec2 screenSize(window.Width(), window.Height());
+
+	size_t jointCount = 0;
+	const Engine::BindPose* p_bindPose = nullptr;
+	const Engine::AnimationPose* p_animationPose = nullptr;
+
+	if (animationFactory.CurrentStage() == AnimationObjectFactory::Stage::Animating)
+	{
+		auto& builder = animationFactory.GetAnimationBuilder();
+		jointCount = builder.GetJointCount();
+		p_bindPose = &builder.GetBindPose();
+		p_animationPose = &builder.GetAnimationPose(currentKeyframeTime);
+	}
+	else if(animationFactory.CurrentStage() == AnimationObjectFactory::Stage::None && animationObject != nullptr)
+	{
+		jointCount = animationObject->jointCount;
+		p_bindPose = &animationObject->bindPose;
+		p_animationPose = &animationObject->animationPose;
+	}
 
 	// draw backface to get max distance
 	glBindFramebuffer(GL_FRAMEBUFFER, backfaceRenderTarget.framebuffer);
@@ -213,10 +228,7 @@ void App_SetupTest::DrawSDf(bool applyDeformation, bool showDebugMesh)
 	backfaceShader.SetMat4("u_MVP", &MVP[0][0]);
 	backfaceShader.SetVec3("u_localCameraPos", &localCamPos[0]);
 
-	//SetKelvinletShaderData(backfaceShader, kelvinlet, applyDeformation);
-
-	SetSkeletonShaderData(backfaceShader, animationObject->jointCount, animationObject->bindPose, animationObject->animationPose, applyDeformation);
-
+	SetSkeletonShaderData(backfaceShader, jointCount, p_bindPose, p_animationPose);
 	
 	sdfMesh.Draw(0, GL_PATCHES);
 
@@ -238,10 +250,7 @@ void App_SetupTest::DrawSDf(bool applyDeformation, bool showDebugMesh)
 	glActiveTexture(GL_TEXTURE0);
 	glBindTexture(GL_TEXTURE_2D, backfaceRenderTarget.texture);
 
-	//SetKelvinletShaderData(sdfShader, kelvinlet, applyDeformation);
-
-	SetSkeletonShaderData(sdfShader, animationObject->jointCount, animationObject->bindPose, animationObject->animationPose, applyDeformation);
-
+	SetSkeletonShaderData(sdfShader, jointCount, p_bindPose, p_animationPose);
 
 	sdfMesh.Draw(0, GL_PATCHES);
 
@@ -261,39 +270,261 @@ void App_SetupTest::DrawSDf(bool applyDeformation, bool showDebugMesh)
 	
 }
 
-/*void App_SetupTest::DrawBones(Engine::Bone& startBone, const glm::mat4& parentWorldTransform, const glm::mat4& VP)
+glm::mat4 AlignMatrix(const glm::vec3& up)
 {
-	glm::mat4 worldTransform = parentWorldTransform * startBone.localTransform.Matrix();
-	glm::mat4 M(0.1f);
-	M[3] = worldTransform[3];
-	glm::mat4 MVP = VP * M;
-	glm::vec3 color(1.f);
+	glm::vec3 right(1.f, 0.f, 0.f);
+	if (up.x == 1.f)
+		right = glm::vec3(0.f, 1.f, 0.f);
 
-	boneShader.SetMat4("u_MVP", &MVP[0][0]);
-	boneShader.SetVec3("u_color", &color[0]);
+	glm::vec3 forward = glm::normalize(glm::cross(right, up));
+	right = glm::cross(up, forward);
 
-	boneMesh.Draw(0);
-
-	for (size_t i = 0; i < startBone.ChildrenCount(); i++)
-		DrawBones(startBone.GetChild(i), worldTransform, VP);
+	return glm::mat4(
+		glm::vec4(right, 0.f),
+		glm::vec4(up, 0.f),
+		glm::vec4(forward, 0.f),
+		glm::vec4(0.f, 0.f, 0.f, 1.f)
+	);
 }
 
-void App_SetupTest::DrawSkeleton(Engine::Bone& skeleton)
+void App_SetupTest::DrawAnimationData()
 {
+	if (animationFactory.CurrentStage() == AnimationObjectFactory::Stage::None)
+		return;
+
 	glm::mat4 VP = flyCam.camera.CalcP() * flyCam.camera.CalcV(flyCam.transform);
 
+	flatShader.Use();
 	glDisable(GL_DEPTH_TEST);
 	glDepthMask(0);
-	boneShader.Use();
-	boneMesh.Bind();
 
-	DrawBones(skeleton, glm::mat4(1.f), VP);
+	if (animationFactory.CurrentStage() == AnimationObjectFactory::Stage::BuildingSkeleton)
+	{
+		auto& builder = animationFactory.GetSkeletonBuilder();
+		builder.GetBuildingJointNodes(buildingJointNodes);
 
-	boneMesh.Unbind();
-	boneShader.StopUsing();
-	glDepthMask(1);
+		jointMesh.Bind();
+
+		for (auto& node : buildingJointNodes)
+		{
+			glm::mat4 M(0.1f);
+			M[3] = glm::vec4(node.jointWorldPosition, 1.f);
+			glm::mat4 MVP = VP * M;
+			glm::vec3 color(0.5f);
+
+			if (node.isCurrentJoint)
+				color = glm::vec3(1.f, 0.7f, 0.2f);
+
+			flatShader.SetMat4("u_MVP", &MVP[0][0]);
+			flatShader.SetVec3("u_color", &color[0]);
+
+			jointMesh.Draw(0);
+		}
+
+		jointMesh.Unbind();
+
+		weightVolumeMesh.Bind();
+		glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+
+		for (auto& node : buildingJointNodes)
+		{
+			glm::mat4 M(0.2f);
+			M[1][1] = glm::length(node.weightWorldStartToEnd);
+			M = AlignMatrix(glm::normalize(node.weightWorldStartToEnd)) * M;
+			M[3] = glm::vec4(node.weightWorldStartPoint + node.weightWorldStartToEnd * 1.f, 1.f);
+			glm::mat4 MVP = VP * M;
+			glm::vec3 color(0.5f);
+
+			if (node.isCurrentJoint)
+				color = glm::vec3(1.f, 0.7f, 0.2f);
+
+			flatShader.SetMat4("u_MVP", &MVP[0][0]);
+			flatShader.SetVec3("u_color", &color[0]);
+
+			weightVolumeMesh.Draw(0);
+		}
+
+		glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+		weightVolumeMesh.Unbind();
+	}
+	else if (animationFactory.CurrentStage() == AnimationObjectFactory::Stage::Animating)
+	{
+		auto& builder = animationFactory.GetAnimationBuilder();
+		builder.GetJointNodes(currentKeyframeTime, jointNodes);
+
+		jointMesh.Bind();
+
+		for (auto& node : jointNodes)
+		{
+			glm::mat4 M(0.1f);
+			M[3] = glm::vec4(node.jointWorldPosition, 1.f);
+			glm::mat4 MVP = VP * M;
+			glm::vec3 color(0.5f);
+
+			if (node.isCurrentJoint)
+				color = glm::vec3(1.f, 0.7f, 0.2f);
+
+			flatShader.SetMat4("u_MVP", &MVP[0][0]);
+			flatShader.SetVec3("u_color", &color[0]);
+
+			jointMesh.Draw(0);
+		}
+
+		jointMesh.Unbind();
+	}
+
 	glEnable(GL_DEPTH_TEST);
-}*/
+	glDepthMask(1);
+	flatShader.StopUsing();
+}
+
+void App_SetupTest::DrawUI(float deltaTime)
+{
+	ImGui::Begin("Menu");
+	ImGui::Text("FPS: %.1f", 1.f / deltaTime);
+	
+	if (ImGui::RadioButton("Show debug mesh", showDebugMesh))
+		showDebugMesh = !showDebugMesh;
+
+	ImGui::NewLine();
+
+	auto stage = animationFactory.CurrentStage();
+	if (stage == AnimationObjectFactory::Stage::None)
+	{
+		if (ImGui::Button("New animation"))
+		{
+			animationObject = nullptr;// destroy current animation
+			animationFactory.StartBuildingSkeleton();
+		}
+	}
+	else if (stage == AnimationObjectFactory::Stage::BuildingSkeleton)
+	{
+		auto& builder = animationFactory.GetSkeletonBuilder();
+
+		// skeleton navigation and creation
+		ImGui::Text("Skeleton:");
+
+		if (ImGui::Button("Add child joint"))
+			builder.AddChild();
+		
+		if (builder.HasParent() && ImGui::Button("Remove joint"))
+			builder.RemoveJointAndGoToParent();
+
+		for (size_t i = 0; i < builder.GetChildCount(); i++)
+		{
+			std::string label = "Go to child joint " + std::to_string(i);
+			if (ImGui::Button(label.c_str()))
+				builder.GoToChild(i);
+		}
+
+		if (builder.HasParent() && ImGui::Button("Go to parent"))
+			builder.GoToParent();
+
+		ImGui::NewLine();
+
+		// joint transform configuration
+		AnimationTransform transform = builder.GetJointTransform();
+
+		ImGui::Text("Transform:");
+		bool change = ImGui::DragFloat3("position", &transform.position[0], 0.05f, -10.f, 10.f, "%.3f", 1.f);
+		change |= ImGui::DragFloat3("rotation", &transform.eulerAngles[0], 0.05f, -4.f, 4.f, "%.3f", 1.f);
+		change |= ImGui::DragFloat("scale", &transform.scale, 0.05f, 0.01f, 20.f, "%.3f", 1.f);
+		ImGui::NewLine();
+
+		if (change)
+		{
+			builder.SetJointTransform(transform);
+		}
+
+		// joint weight volume configuration
+		Engine::JointWeightVolume weightVolume = builder.GetJointWeightVolume();
+
+		ImGui::Text("Weight volume:");
+		change = ImGui::DragFloat3("start", &weightVolume.startPoint[0], 0.05f, -10.f, 10.f, "%.3f", 1.f);
+		change |= ImGui::DragFloat3("direction", &weightVolume.startToEnd[0], 0.05f, -10.f, 10.f, "%.3f", 1.f);
+		change |= ImGui::DragFloat("falloff rate", &weightVolume.falloffRate, 0.2f, 1.f, 30.f, "%.3f", 1.f);
+		ImGui::NewLine();
+
+		if (change)
+			builder.SetJointWeightVolume(weightVolume);
+
+		// skeleton creation
+		if (ImGui::Button("Complete skeleton"))
+			builder.Complete().StartAnimating();
+	}
+	else if (stage == AnimationObjectFactory::Stage::Animating)
+	{
+		auto& builder = animationFactory.GetAnimationBuilder();
+
+		// building and navigating keyframes
+		ImGui::Text("Keyframe:");
+
+		if (ImGui::Button("Add new keyframe"))
+			builder.AddAndGoToKeyframe(currentKeyframeTime);
+
+		ImGui::SliderFloat("New keyframe timestamp", &currentKeyframeTime, 0.01f, 0.99f, "%.3f", 1.f);
+		ImGui::NewLine();
+
+		if (builder.CanKeyframeBeRemoved() && ImGui::Button("Remove keyframe"))
+			builder.RemoveKeyframeAndGoLeft();
+
+		for (size_t i = 0; i < builder.GetKeyframeCount(); i++)
+		{
+			std::string label = "Go to keyframe " + std::to_string(i);
+			
+			if (builder.GetKeyframeIndex() == i)
+				label += " <";
+
+			if (ImGui::Button(label.c_str()))
+				builder.GoToKeyframe(i);
+		}
+
+		ImGui::NewLine();
+
+		// posing and navigating skeleton
+		ImGui::Text("Pose:");
+
+		for (size_t i = 0; i < builder.GetChildCount(); i++)
+		{
+			std::string label = "Go to child joint " + std::to_string(i);
+			if (ImGui::Button(label.c_str()))
+				builder.GoToChild(i);
+		}
+
+		if (builder.HasParent() && ImGui::Button("Go to parent"))
+			builder.GoToParent();
+
+		ImGui::NewLine();
+
+		// joint transform configuration
+		AnimationTransform transform = builder.GetJointTransform();
+
+		ImGui::Text("Transform:");
+		bool change = ImGui::DragFloat3("position", &transform.position[0], 0.05f, -10.f, 10.f, "%.3f", 1.f);
+		change |= ImGui::DragFloat3("rotation", &transform.eulerAngles[0], 0.05f, -4.f, 4.f, "%.3f", 1.f);
+		change |= ImGui::DragFloat("scale", &transform.scale, 0.05f, 0.01f, 20.f, "%.3f", 1.f);
+		ImGui::NewLine();
+
+		if (change)
+		{
+			builder.SetJointTransform(transform);
+		}
+
+		// animation creation
+		if (ImGui::Button("Complete animation"))
+		{
+			animationObject = builder.Complete().CompleteObject();
+			animationObject->animationPlayer.duration = newAnimationDuration;
+			animationObject->animationPlayer.loop = newAnimationLoop;
+		}
+
+		ImGui::DragFloat("Duration", &newAnimationDuration, 1.f, 0.01f, 60.f, "%.3f", 1.f);
+		if (ImGui::RadioButton("Loop", newAnimationLoop))
+			newAnimationLoop = !newAnimationLoop;
+	}
+
+	ImGui::End();
+}
 
 void App_SetupTest::Init()
 {
@@ -303,7 +534,7 @@ void App_SetupTest::Init()
 	glPatchParameteri(GL_PATCH_VERTICES, 3);
 
 	flyCam.camera.Init(70.f, float(window.Width()) / window.Height(), 0.3f, 500.f);
-	flyCam.transform[3] = glm::vec4(1.f, 0.f, -5.f, 1.f);
+	flyCam.transform[3] = glm::vec4(0.f, 0.f, -5.f, 1.f);
 	flyCam.sensitivity = 0.2f;
 	flyCam.speed = 3.f;
 
@@ -332,6 +563,10 @@ void App_SetupTest::Init()
 		}
 	);
 
+	Engine::GenerateUnitSphere(jointMesh);
+	Engine::GenerateUnitCapsule(weightVolumeMesh);
+	flatShader.Reload("assets/shaders/flat_vert.glsl", "assets/shaders/flat_frag.glsl");
+
 	glGenFramebuffers(1, &backfaceRenderTarget.framebuffer);
 	glBindFramebuffer(GL_FRAMEBUFFER, backfaceRenderTarget.framebuffer);
 
@@ -356,25 +591,6 @@ void App_SetupTest::Init()
 
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);
 	glBindTexture(GL_TEXTURE_2D, 0);
-
-
-	AnimationObjectFactory F;
-	animationObject = 
-	F.StartBuildingSkeleton().
-		AddAndGoToChild().SetJointTransform(Engine::Transform(
-			glm::vec3(0.f, 1.f, 0.f), 
-			glm::vec3(0.f), 
-			1.f)
-		).Complete().
-	StartAnimating().
-		AddAndGoToKeyframe(0.2f).GoToChild(0).SetJointTransform(Engine::Transform(
-			glm::vec3(0.f, 1.5f, 0.f), 
-			glm::vec3(1.f, 0.f, 0.f), 
-			3.f
-		)).Complete().
-	CompleteObject();
-
-	animationObject->Start(10.f, true);
 }
 
 void App_SetupTest::UpdateLoop()
@@ -387,9 +603,6 @@ void App_SetupTest::UpdateLoop()
 	shaderWatchers[4].Init("assets/shaders/deformation.glsl");
 	shaderWatchers[5].Init("assets/shaders/backface_frag.glsl");
 	shaderWatchers[6].Init("assets/shaders/backface_tess_eval.glsl");
-
-	bool showDebugMesh = true;
-	bool applyDeformation = true;
 
 	double time0 = glfwGetTime();
 
@@ -429,25 +642,12 @@ void App_SetupTest::UpdateLoop()
 			}
 		}
 
-		animationObject->Update(deltaTime);
-
-		DrawSDf(applyDeformation, showDebugMesh);
-
-
-		ImGui::Begin("Menu");
-		ImGui::Text("fps: %f", 1.f / deltaTime);
-		ImGui::NewLine();
-
-		if (ImGui::RadioButton("Show mesh", showDebugMesh))
-			showDebugMesh = !showDebugMesh;
-
-		ImGui::NewLine();
-
-		/*ImGui::DragFloat3("Center", &kelvinlet.center.x, 0.03f, -10.f, 10.f, "%.2f", 1.f);
-		ImGui::DragFloat3("Force", &kelvinlet.force.x, 0.03f, -10.f, 10.f, "%.2f", 1.f);
-		ImGui::DragFloat("Sharpness", &kelvinlet.sharpness, 0.03f, 1.f, 16.f, "%.2f", 1.f);*/
-
-		ImGui::End();
+		if (animationObject != nullptr)
+			animationObject->Update(deltaTime);
+		
+		DrawSDf();
+		DrawAnimationData();
+		DrawUI(deltaTime);
 		
 
 		window.EndUpdate();

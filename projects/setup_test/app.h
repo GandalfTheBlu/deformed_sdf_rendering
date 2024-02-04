@@ -47,12 +47,26 @@ public:
 	Engine::Shader backfaceShader;
 	RenderTarget backfaceRenderTarget;
 
+	bool showDebugMesh;
+	Engine::RenderMesh jointMesh;
+	Engine::RenderMesh weightVolumeMesh;
+	Engine::Shader flatShader;
+
+	AnimationObjectFactory animationFactory;
+	std::vector<BuildingJointNode> buildingJointNodes;
+	std::vector<JointNode> jointNodes;
+	Engine::AnimationPose buildingAnimationPose;
+	float currentKeyframeTime;
+	float newAnimationDuration;
+	bool newAnimationLoop;
 	std::shared_ptr<AnimationObject> animationObject;
 
 	App_SetupTest();
 
 	void HandleInput(float deltaTime);
-	void DrawSDf(bool applyDeformation, bool showDebugMesh);
+	void DrawSDf();
+	void DrawAnimationData();
+	void DrawUI(float deltaTime);
 
 	void Init();
 	void UpdateLoop();

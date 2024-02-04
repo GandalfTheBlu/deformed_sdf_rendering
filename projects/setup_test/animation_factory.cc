@@ -22,6 +22,51 @@ AnimationObjectFactory::State::State() :
 {}
 
 
+
+AnimationTransform::AnimationTransform() :
+	position(0.f),
+	eulerAngles(0.f),
+	scale(1.f)
+{}
+
+AnimationTransform::AnimationTransform(const glm::vec3& _position, const glm::vec3& _eulerAngles, float _scale) :
+	position(_position),
+	eulerAngles(_eulerAngles),
+	scale(_scale)
+{}
+
+
+BuildingJointNode::BuildingJointNode() :
+	isCurrentJoint(false),
+	jointWorldPosition(0.f),
+	weightWorldStartPoint(0.f),
+	weightWorldStartToEnd(0.f)
+{}
+
+BuildingJointNode::BuildingJointNode(
+	bool _isCurrentJoint,
+	const glm::vec3& _jointWorldPosition,
+	const glm::vec3& _weightWorldStartPoint,
+	const glm::vec3& _weightWorldStartToEnd
+) :
+	isCurrentJoint(_isCurrentJoint),
+	jointWorldPosition(_jointWorldPosition),
+	weightWorldStartPoint(_weightWorldStartPoint),
+	weightWorldStartToEnd(_weightWorldStartToEnd)
+{}
+
+
+JointNode::JointNode() :
+	isCurrentJoint(false),
+	jointWorldPosition(0.f)
+{}
+
+JointNode::JointNode(bool _isCurrentJoint, const glm::vec3& _jointWorldPosition) :
+	isCurrentJoint(_isCurrentJoint),
+	jointWorldPosition(_jointWorldPosition)
+{}
+
+
 AnimationObjectFactory::Builder::Builder(AnimationObjectFactory* _p_factory) :
 	p_factory(_p_factory)
 {}
@@ -37,9 +82,12 @@ AnimationObjectFactory::SkeletonBuilder::SkeletonBuilder(AnimationObjectFactory*
 }
 
 AnimationObjectFactory::SkeletonBuilder& 
-AnimationObjectFactory::SkeletonBuilder::SetJointTransform(const Engine::Transform& transform)
+AnimationObjectFactory::SkeletonBuilder::SetJointTransform(const AnimationTransform& transform)
 {
-	p_currentJoint->localTransform = transform;
+	p_currentJoint->localTransform.position = transform.position;
+	p_currentJoint->localTransform.rotation = transform.eulerAngles;
+	p_currentJoint->localTransform.scale = transform.scale;
+	p_currentJoint->eulerAngles = transform.eulerAngles;
 	return *this;
 }
 
@@ -51,17 +99,29 @@ AnimationObjectFactory::SkeletonBuilder::SetJointWeightVolume(const Engine::Join
 }
 
 AnimationObjectFactory::SkeletonBuilder& 
-AnimationObjectFactory::SkeletonBuilder::AddAndGoToChild()
+AnimationObjectFactory::SkeletonBuilder::AddChild()
 {
 	p_currentJoint->AddChild();
-	p_currentJoint = p_currentJoint->children.back();
 	return *this;
 }
 
 AnimationObjectFactory::SkeletonBuilder& 
-AnimationObjectFactory::SkeletonBuilder::RemoveChild(size_t index)
+AnimationObjectFactory::SkeletonBuilder::RemoveJointAndGoToParent()
 {
-	p_currentJoint->RemoveChild(index);
+	assert(p_currentJoint->p_parent != nullptr);
+
+	Engine::BuildingJoint* p_parent = p_currentJoint->p_parent;
+
+	for (size_t i = 0; i < p_parent->children.size(); i++)
+	{
+		if (p_parent->children[i] == p_currentJoint)
+		{
+			p_parent->RemoveChild(i);
+			p_currentJoint = p_parent;
+			break;
+		}
+	}
+	
 	return *this;
 }
 
@@ -79,6 +139,20 @@ AnimationObjectFactory::SkeletonBuilder::GoToParent()
 	return *this;
 }
 
+AnimationTransform AnimationObjectFactory::SkeletonBuilder::GetJointTransform() const
+{
+	return AnimationTransform(
+		p_currentJoint->localTransform.position,
+		p_currentJoint->eulerAngles,
+		p_currentJoint->localTransform.scale
+	);
+}
+
+Engine::JointWeightVolume AnimationObjectFactory::SkeletonBuilder::GetJointWeightVolume() const
+{
+	return p_currentJoint->weightVolume;
+}
+
 size_t AnimationObjectFactory::SkeletonBuilder::GetChildCount() const
 {
 	return p_currentJoint->children.size();
@@ -87,6 +161,35 @@ size_t AnimationObjectFactory::SkeletonBuilder::GetChildCount() const
 bool AnimationObjectFactory::SkeletonBuilder::HasParent() const
 {
 	return p_currentJoint->p_parent != nullptr;
+}
+
+void BuildBuildingJointNodes(
+	const Engine::BuildingJoint& startBuildingJoint,
+	const glm::mat4& parentWorldTransform,
+	const Engine::BuildingJoint* p_currentJoint,
+	std::vector<BuildingJointNode>& nodes
+)
+{
+	glm::mat4 worldTransform = parentWorldTransform * startBuildingJoint.localTransform.Matrix();
+	bool isCurrentJoint = &startBuildingJoint == p_currentJoint;
+
+	nodes.emplace_back(
+		isCurrentJoint,
+		glm::vec3(worldTransform[3]),
+		glm::vec3(worldTransform * glm::vec4(startBuildingJoint.weightVolume.startPoint, 1.f)),
+		glm::vec3(parentWorldTransform * glm::vec4(startBuildingJoint.weightVolume.startToEnd, 0.f))
+	);
+
+	for (Engine::BuildingJoint* p_child : startBuildingJoint.children)
+		BuildBuildingJointNodes(*p_child, worldTransform, p_currentJoint, nodes);
+}
+
+void AnimationObjectFactory::SkeletonBuilder::GetBuildingJointNodes(
+	std::vector<BuildingJointNode>& nodes
+) const
+{
+	nodes.clear();
+	BuildBuildingJointNodes(skeleton.root, glm::mat4(1.f), p_currentJoint, nodes);
 }
 
 AnimationObjectFactory& AnimationObjectFactory::SkeletonBuilder::Complete()
@@ -98,7 +201,7 @@ AnimationObjectFactory& AnimationObjectFactory::SkeletonBuilder::Complete()
 	p_factory->p_state->animationObject->jointCount = skeleton.jointCount;
 	p_factory->p_state->animationObject->animationPose.Allocate(skeleton.jointCount);
 
-	p_factory->p_state->stage = AnimationObjectFactory::State::Stage::SkeletonCompleted;
+	p_factory->p_state->stage = AnimationObjectFactory::Stage::SkeletonCompleted;
 
 	return *p_factory;
 }
@@ -121,9 +224,13 @@ AnimationObjectFactory::AnimationBuilder::AddAndGoToKeyframe(float time)
 }
 
 AnimationObjectFactory::AnimationBuilder& 
-AnimationObjectFactory::AnimationBuilder::RemoveKeyframe(size_t index)
+AnimationObjectFactory::AnimationBuilder::RemoveKeyframeAndGoLeft()
 {
-	animation.RemoveKeyframe(index);
+	assert(currentKeyframeIndex > 0 && currentKeyframeIndex + 1 < animation.keyframes.size());
+
+	animation.RemoveKeyframe(currentKeyframeIndex);
+	currentKeyframeIndex--;
+
 	return *this;
 }
 
@@ -140,10 +247,23 @@ size_t AnimationObjectFactory::AnimationBuilder::GetKeyframeCount()
 	return animation.keyframes.size();
 }
 
-AnimationObjectFactory::AnimationBuilder& 
-AnimationObjectFactory::AnimationBuilder::SetJointTransform(const Engine::Transform& transform)
+size_t AnimationObjectFactory::AnimationBuilder::GetKeyframeIndex()
 {
-	p_currentJoint->localTransform = transform;
+	return currentKeyframeIndex;
+}
+
+bool AnimationObjectFactory::AnimationBuilder::CanKeyframeBeRemoved()
+{
+	return currentKeyframeIndex > 1 && currentKeyframeIndex + 1 < animation.keyframes.size();
+}
+
+AnimationObjectFactory::AnimationBuilder& 
+AnimationObjectFactory::AnimationBuilder::SetJointTransform(const AnimationTransform& transform)
+{
+	p_currentJoint->localTransform.position = transform.position;
+	p_currentJoint->localTransform.rotation = transform.eulerAngles;
+	p_currentJoint->localTransform.scale = transform.scale;
+	p_currentJoint->eulerAngles = transform.eulerAngles;
 	return *this;
 }
 
@@ -161,6 +281,15 @@ AnimationObjectFactory::AnimationBuilder::GoToParent()
 	return *this;
 }
 
+AnimationTransform AnimationObjectFactory::AnimationBuilder::GetJointTransform() const
+{
+	return AnimationTransform(
+		p_currentJoint->localTransform.position,
+		p_currentJoint->eulerAngles,
+		p_currentJoint->localTransform.scale
+	);
+}
+
 size_t AnimationObjectFactory::AnimationBuilder::GetChildCount() const
 {
 	return p_currentJoint->childCount;
@@ -171,11 +300,87 @@ bool AnimationObjectFactory::AnimationBuilder::HasParent() const
 	return p_currentJoint->p_parent != nullptr;
 }
 
+void BuildJointNode(
+	const Engine::Joint& starLeftJoint,
+	const Engine::Joint& startRightJoint,
+	const glm::mat4& parentWorldTransform,
+	const Engine::Joint* p_currentJoint,
+	float alpha,
+	std::vector<JointNode>& positions
+)
+{
+	glm::mat4 worldTransform = parentWorldTransform *
+		Lerp(starLeftJoint.localTransform, startRightJoint.localTransform, alpha).Matrix();
+	bool isCurrentJoint = &starLeftJoint == p_currentJoint;
+
+	positions.emplace_back(isCurrentJoint, glm::vec3(worldTransform[3]));
+
+	for (size_t i = 0; i < starLeftJoint.childCount; i++)
+	{
+		BuildJointNode(
+			starLeftJoint.p_children[i],
+			starLeftJoint.p_children[i],
+			worldTransform,
+			p_currentJoint,
+			alpha,
+			positions
+		);
+	}
+}
+
+void AnimationObjectFactory::AnimationBuilder::GetJointNodes(
+	float time,
+	std::vector<JointNode>& nodes
+) const
+{
+	for (size_t i = 1; i < animation.keyframes.size(); i++)
+	{
+		if (animation.keyframes[i]->timestamp >= time)
+		{
+			float alpha = (time - animation.keyframes[i - 1]->timestamp) /
+				(animation.keyframes[i]->timestamp - animation.keyframes[i - 1]->timestamp);
+
+			nodes.clear();
+
+			BuildJointNode(
+				animation.keyframes[i - 1]->skeleton.root,
+				animation.keyframes[i]->skeleton.root,
+				glm::mat4(1.f),
+				p_currentJoint,
+				alpha,
+				nodes
+			);
+			break;
+		}
+	}
+}
+
+size_t AnimationObjectFactory::AnimationBuilder::GetJointCount() const
+{
+	return p_factory->p_state->skeleton.jointCount;
+}
+
+const Engine::BindPose& AnimationObjectFactory::AnimationBuilder::GetBindPose() const
+{
+	return p_factory->p_state->animationObject->bindPose;
+}
+
+const Engine::AnimationPose& AnimationObjectFactory::AnimationBuilder::GetAnimationPose(float time) const
+{
+	animation.GetAnimationPose(
+		time, 
+		p_factory->p_state->animationObject->bindPose, 
+		p_factory->p_state->animationObject->animationPose
+	);
+
+	return p_factory->p_state->animationObject->animationPose;
+}
+
 AnimationObjectFactory& AnimationObjectFactory::AnimationBuilder::Complete()
 {
 	animation.BuildAnimation(p_factory->p_state->animationObject->animation);
 
-	p_factory->p_state->stage = AnimationObjectFactory::State::Stage::AnimationCompleted;
+	p_factory->p_state->stage = AnimationObjectFactory::Stage::AnimationCompleted;
 
 	return *p_factory;
 }
@@ -194,12 +399,20 @@ AnimationObjectFactory::~AnimationObjectFactory()
 	}
 }
 
+AnimationObjectFactory::Stage AnimationObjectFactory::CurrentStage() const
+{
+	if (p_state == nullptr)
+		return Stage::None;
+	
+	return p_state->stage;
+}
+
 AnimationObjectFactory::SkeletonBuilder& AnimationObjectFactory::StartBuildingSkeleton()
 {
 	assert(p_state == nullptr);
 
 	p_state = new State();
-	p_state->stage = State::Stage::BuildingSkeleton;
+	p_state->stage = Stage::BuildingSkeleton;
 	p_state->animationObject = std::make_shared<AnimationObject>();
 
 	SkeletonBuilder* p_builder = new SkeletonBuilder(this);
@@ -210,16 +423,16 @@ AnimationObjectFactory::SkeletonBuilder& AnimationObjectFactory::StartBuildingSk
 
 AnimationObjectFactory::SkeletonBuilder& AnimationObjectFactory::GetSkeletonBuilder()
 {
-	assert(p_state != nullptr && p_state->stage == State::Stage::BuildingSkeleton);
+	assert(p_state != nullptr && p_state->stage == Stage::BuildingSkeleton);
 	return *dynamic_cast<SkeletonBuilder*>(p_state->p_builder);
 }
 
 AnimationObjectFactory::AnimationBuilder& AnimationObjectFactory::StartAnimating()
 {
-	assert(p_state != nullptr && p_state->stage == State::Stage::SkeletonCompleted);
+	assert(p_state != nullptr && p_state->stage == Stage::SkeletonCompleted);
 	
 	delete p_state->p_builder;
-	p_state->stage = State::Stage::Animating;
+	p_state->stage = Stage::Animating;
 
 	AnimationBuilder* p_builder = new AnimationBuilder(this);
 	p_state->p_builder = p_builder;
@@ -229,13 +442,13 @@ AnimationObjectFactory::AnimationBuilder& AnimationObjectFactory::StartAnimating
 
 AnimationObjectFactory::AnimationBuilder& AnimationObjectFactory::GetAnimationBuilder()
 {
-	assert(p_state != nullptr && p_state->stage == State::Stage::Animating);
+	assert(p_state != nullptr && p_state->stage == Stage::Animating);
 	return *dynamic_cast<AnimationBuilder*>(p_state->p_builder);
 }
 
 std::shared_ptr<AnimationObject> AnimationObjectFactory::CompleteObject()
 {
-	assert(p_state != nullptr && p_state->stage == State::Stage::AnimationCompleted);
+	assert(p_state != nullptr && p_state->stage == Stage::AnimationCompleted);
 
 	std::shared_ptr<AnimationObject> animationObject = p_state->animationObject;
 

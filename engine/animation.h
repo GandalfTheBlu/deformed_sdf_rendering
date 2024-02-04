@@ -89,6 +89,7 @@ namespace Engine
 		size_t childCount;
 		Joint* p_children;
 		Transform localTransform;
+		glm::vec3 eulerAngles;
 
 		Joint();
 		~Joint();
@@ -116,6 +117,7 @@ namespace Engine
 		BuildingJoint* p_parent;
 		std::vector<BuildingJoint*> children;
 		Transform localTransform;
+		glm::vec3 eulerAngles;
 		JointWeightVolume weightVolume;
 
 		BuildingJoint(BuildingSkeleton* _p_skeleton, BuildingJoint* _p_parent);
@@ -160,9 +162,7 @@ namespace Engine
 		void RemoveKeyframe(size_t index);
 
 		// used for visualization while building
-		void GetSkeletonPose(float time, Skeleton& skeleton);
-		// used for visualization while building
-		void GetAnimationPose(float time, const BindPose& bindPose, AnimationPose& animationPose);
+		void GetAnimationPose(float time, const BindPose& bindPose, AnimationPose& animationPose) const;
 
 		void BuildAnimation(Animation& animation) const;
 	};
