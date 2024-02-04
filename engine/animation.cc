@@ -80,13 +80,6 @@ namespace Engine
 	}
 
 
-	AnimationContext::AnimationContext() :
-		jointCount(0),
-		p_sharedBindPose(nullptr),
-		p_sharedAnimation(nullptr)
-	{}
-
-
 	AnimationPlayer::AnimationPlayer() :
 		currentKeyframeIndex(0),
 		currentTime(0.f),
@@ -102,19 +95,25 @@ namespace Engine
 		loop = _loop;
 	}
 
-	void AnimationPlayer::Update(float deltaTime, const AnimationContext& animationContext, AnimationPose& animationPose)
+	void AnimationPlayer::Update(
+		float deltaTime,
+		size_t jointCount,
+		const BindPose& bindPose,
+		const Animation& animation,
+		AnimationPose& animationPose
+	)
 	{
-		Keyframe& leftKeyframe = animationContext.p_sharedAnimation->p_keyframes[currentKeyframeIndex];
-		Keyframe& rightKeyframe = animationContext.p_sharedAnimation->p_keyframes[currentKeyframeIndex + 1];
+		Keyframe& leftKeyframe = animation.p_keyframes[currentKeyframeIndex];
+		Keyframe& rightKeyframe = animation.p_keyframes[currentKeyframeIndex + 1];
 		float normalizedTime = currentTime / duration;
 		float alpha = (normalizedTime - leftKeyframe.timestamp) / 
 			(rightKeyframe.timestamp - leftKeyframe.timestamp);
 
-		for (size_t i = 0; i < animationContext.jointCount; i++)
+		for (size_t i = 0; i < jointCount; i++)
 		{
 			animationPose.p_deformationMatrices[i] =
 				Lerp(leftKeyframe.p_transformBuffer[i], rightKeyframe.p_transformBuffer[i], alpha).Matrix() *
-				animationContext.p_sharedBindPose->p_inverseWorldMatrices[i];
+				bindPose.p_inverseWorldMatrices[i];
 		}
 
 		currentTime += deltaTime;
@@ -122,7 +121,7 @@ namespace Engine
 		{
 			currentKeyframeIndex++;
 
-			if (currentKeyframeIndex + 1 == animationContext.p_sharedAnimation->keyframeCount)
+			if (currentKeyframeIndex + 1 == animation.keyframeCount)
 			{
 				if (loop)
 				{
@@ -146,7 +145,7 @@ namespace Engine
 
 	Joint::Joint() :
 		p_parent(nullptr),
-		childrenCount(0),
+		childCount(0),
 		p_children(nullptr)
 	{}
 
@@ -157,10 +156,10 @@ namespace Engine
 
 	void Joint::Allocate(size_t _childrenCount)
 	{
-		childrenCount = _childrenCount;
+		childCount = _childrenCount;
 
-		if(childrenCount > 0)
-			p_children = new Joint[childrenCount]();
+		if(childCount > 0)
+			p_children = new Joint[childCount]();
 	}
 
 
@@ -171,9 +170,9 @@ namespace Engine
 	void CopyJoints(const Joint& startJoint, Joint& jointCopy)
 	{
 		jointCopy.localTransform = startJoint.localTransform;
-		jointCopy.Allocate(startJoint.childrenCount);
+		jointCopy.Allocate(startJoint.childCount);
 		
-		for (size_t i = 0; i < startJoint.childrenCount; i++)
+		for (size_t i = 0; i < startJoint.childCount; i++)
 		{
 			jointCopy.p_children[i].p_parent = &jointCopy;
 			CopyJoints(startJoint.p_children[i], jointCopy.p_children[i]);
@@ -282,7 +281,7 @@ namespace Engine
 	{
 		joint.localTransform = Lerp(startLeftJoint.localTransform, startRightJoint.localTransform, alpha);
 
-		for (size_t i = 0; i < joint.childrenCount; i++)
+		for (size_t i = 0; i < joint.childCount; i++)
 			InterpolateJoints(joint.p_children[i], startLeftJoint.p_children[i], startRightJoint.p_children[i], alpha);
 	}
 
@@ -371,7 +370,7 @@ namespace Engine
 			alpha
 		).Matrix() * bindPose.p_inverseWorldMatrices[inoutIndex];
 
-		for (size_t i = 0; i < startLeftJoint.childrenCount; i++)
+		for (size_t i = 0; i < startLeftJoint.childCount; i++)
 		{
 			InterpolateAnimationPoses(
 				startLeftJoint.p_children[i],
@@ -416,7 +415,7 @@ namespace Engine
 		Transform worldTransform = Multiply(parentWorldTransform, startJoint.localTransform);
 		keyframe.p_transformBuffer[inoutKeyframeIndex] = worldTransform;
 
-		for (size_t i = 0; i < startJoint.childrenCount; i++)
+		for (size_t i = 0; i < startJoint.childCount; i++)
 		{
 			BuildKeyframe(startJoint.p_children[i], worldTransform, keyframe, ++inoutKeyframeIndex);
 		}

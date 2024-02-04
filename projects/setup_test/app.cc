@@ -215,7 +215,7 @@ void App_SetupTest::DrawSDf(bool applyDeformation, bool showDebugMesh)
 
 	//SetKelvinletShaderData(backfaceShader, kelvinlet, applyDeformation);
 
-	SetSkeletonShaderData(backfaceShader, jointCount, bindPose, animationPose, applyDeformation);
+	SetSkeletonShaderData(backfaceShader, animationObject->jointCount, animationObject->bindPose, animationObject->animationPose, applyDeformation);
 
 	
 	sdfMesh.Draw(0, GL_PATCHES);
@@ -240,7 +240,7 @@ void App_SetupTest::DrawSDf(bool applyDeformation, bool showDebugMesh)
 
 	//SetKelvinletShaderData(sdfShader, kelvinlet, applyDeformation);
 
-	SetSkeletonShaderData(sdfShader, jointCount, bindPose, animationPose, applyDeformation);
+	SetSkeletonShaderData(sdfShader, animationObject->jointCount, animationObject->bindPose, animationObject->animationPose, applyDeformation);
 
 
 	sdfMesh.Draw(0, GL_PATCHES);
@@ -358,22 +358,23 @@ void App_SetupTest::Init()
 	glBindTexture(GL_TEXTURE_2D, 0);
 
 
-	Engine::BuildingSkeleton bs;
-	bs.root.AddChild();
-	bs.root.children[0]->localTransform.position.y = 1.f;
-	Engine::Skeleton sk;
-	bs.BuildSkeletonAndBindPose(sk, bindPose);
-	jointCount = sk.jointCount;
+	AnimationObjectFactory F;
+	animationObject = 
+	F.StartBuildingSkeleton().
+		AddAndGoToChild().SetJointTransform(Engine::Transform(
+			glm::vec3(0.f, 1.f, 0.f), 
+			glm::vec3(0.f), 
+			1.f)
+		).Complete().
+	StartAnimating().
+		AddAndGoToKeyframe(0.2f).GoToChild(0).SetJointTransform(Engine::Transform(
+			glm::vec3(0.f, 1.5f, 0.f), 
+			glm::vec3(1.f, 0.f, 0.f), 
+			3.f
+		)).Complete().
+	CompleteObject();
 
-	Engine::BuildingAnimation ba;
-	ba.InitBorderKeyframes(sk);
-	size_t middleSkIndex = 0;
-	ba.AddKeyframe(0.5f, middleSkIndex);
-	ba.keyframes[middleSkIndex]->skeleton.root.p_children[0].localTransform.rotation = glm::vec3(1.f, 0.f, 0.f);
-	ba.BuildAnimation(animation);
-
-	animationPose.Allocate(jointCount);
-	animationPlayer.Start(10.f, true);
+	animationObject->Start(10.f, true);
 }
 
 void App_SetupTest::UpdateLoop()
@@ -389,11 +390,6 @@ void App_SetupTest::UpdateLoop()
 
 	bool showDebugMesh = true;
 	bool applyDeformation = true;
-
-	Engine::AnimationContext context;
-	context.jointCount = jointCount;
-	context.p_sharedBindPose = &bindPose;
-	context.p_sharedAnimation = &animation;
 
 	double time0 = glfwGetTime();
 
@@ -433,7 +429,7 @@ void App_SetupTest::UpdateLoop()
 			}
 		}
 
-		animationPlayer.Update(deltaTime, context, animationPose);
+		animationObject->Update(deltaTime);
 
 		DrawSDf(applyDeformation, showDebugMesh);
 

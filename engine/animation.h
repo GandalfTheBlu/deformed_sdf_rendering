@@ -61,16 +61,6 @@ namespace Engine
 		void Allocate(size_t _keyframeCount);
 	};
 
-	// convenient collection of animation data used when interpolating an animation
-	struct AnimationContext
-	{
-		size_t jointCount;
-		BindPose* p_sharedBindPose;
-		Animation* p_sharedAnimation;
-
-		AnimationContext();
-	};
-
 	// manages animation duration, looping, keyframe selection and interpolation
 	struct AnimationPlayer
 	{
@@ -82,7 +72,13 @@ namespace Engine
 		AnimationPlayer();
 
 		void Start(float _duration, bool _loop);
-		void Update(float deltaTime, const AnimationContext& animationContext, AnimationPose& animationPose);
+		void Update(
+			float deltaTime,
+			size_t jointCount, 
+			const BindPose& bindPose, 
+			const Animation& animation, 
+			AnimationPose& animationPose
+		);
 		bool IsDone() const;
 	};
 
@@ -90,7 +86,7 @@ namespace Engine
 	struct Joint
 	{
 		Joint* p_parent;
-		size_t childrenCount;
+		size_t childCount;
 		Joint* p_children;
 		Transform localTransform;
 

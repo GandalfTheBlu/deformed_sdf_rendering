@@ -2,7 +2,7 @@
 #include "camera.h"
 #include "marching_cubes.h"
 #include "shader.h"
-#include "animation.h"
+#include "animation_factory.h"
 
 struct RenderTarget
 {
@@ -47,11 +47,7 @@ public:
 	Engine::Shader backfaceShader;
 	RenderTarget backfaceRenderTarget;
 
-	size_t jointCount;
-	Engine::BindPose bindPose;
-	Engine::AnimationPose animationPose;
-	Engine::Animation animation;
-	Engine::AnimationPlayer animationPlayer;
+	std::shared_ptr<AnimationObject> animationObject;
 
 	App_SetupTest();
 

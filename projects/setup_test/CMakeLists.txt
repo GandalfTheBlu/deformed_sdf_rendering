@@ -8,6 +8,8 @@ SET(setup_test_files
 	main.cc
 	app.h
 	app.cc
+	animation_factory.h
+	animation_factory.cc
 )
 SOURCE_GROUP("code" FILES ${setup_test_files})
 
