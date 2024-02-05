@@ -89,6 +89,7 @@ public:
 		AnimationBuilder& GoToKeyframe(size_t index);
 		size_t GetKeyframeCount();
 		size_t GetKeyframeIndex();
+		float GetKeyframeTime();
 		bool CanKeyframeBeRemoved();
 
 		AnimationBuilder& SetJointTransform(const AnimationTransform& transform);

@@ -95,11 +95,17 @@ Kelvinlet::Kelvinlet() :
 {}
 
 
-App_SetupTest::App_SetupTest() :
-	showDebugMesh(true),
+AnimationBuildingState::AnimationBuildingState() :
 	currentKeyframeTime(0.f),
+	keyframeIsSelected(true),
 	newAnimationDuration(5.f),
 	newAnimationLoop(true)
+{}
+
+
+App_SetupTest::App_SetupTest() :
+	showDebugMesh(false),
+	p_buildingState(nullptr)
 {}
 
 void App_SetupTest::HandleInput(float deltaTime)
@@ -206,13 +212,13 @@ void App_SetupTest::DrawSDf()
 		auto& builder = animationFactory.GetAnimationBuilder();
 		jointCount = builder.GetJointCount();
 		p_bindPose = &builder.GetBindPose();
-		p_animationPose = &builder.GetAnimationPose(currentKeyframeTime);
+		p_animationPose = &builder.GetAnimationPose(p_buildingState->currentKeyframeTime);
 	}
-	else if(animationFactory.CurrentStage() == AnimationObjectFactory::Stage::None && animationObject != nullptr)
+	else if(animationFactory.CurrentStage() == AnimationObjectFactory::Stage::None && p_buildingState != nullptr && p_buildingState->animationObject != nullptr)
 	{
-		jointCount = animationObject->jointCount;
-		p_bindPose = &animationObject->bindPose;
-		p_animationPose = &animationObject->animationPose;
+		jointCount = p_buildingState->animationObject->jointCount;
+		p_bindPose = &p_buildingState->animationObject->bindPose;
+		p_animationPose = &p_buildingState->animationObject->animationPose;
 	}
 
 	// draw backface to get max distance
@@ -301,11 +307,11 @@ void App_SetupTest::DrawAnimationData()
 	if (animationFactory.CurrentStage() == AnimationObjectFactory::Stage::BuildingSkeleton)
 	{
 		auto& builder = animationFactory.GetSkeletonBuilder();
-		builder.GetBuildingJointNodes(buildingJointNodes);
+		builder.GetBuildingJointNodes(p_buildingState->buildingJointNodes);
 
 		jointMesh.Bind();
 
-		for (auto& node : buildingJointNodes)
+		for (auto& node : p_buildingState->buildingJointNodes)
 		{
 			glm::mat4 M(0.1f);
 			M[3] = glm::vec4(node.jointWorldPosition, 1.f);
@@ -324,44 +330,46 @@ void App_SetupTest::DrawAnimationData()
 		jointMesh.Unbind();
 
 		weightVolumeMesh.Bind();
-		glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
 
-		for (auto& node : buildingJointNodes)
+		for (auto& node : p_buildingState->buildingJointNodes)
 		{
-			glm::mat4 M(0.2f);
+			glm::mat4 M(1.f);
 			M[1][1] = glm::length(node.weightWorldStartToEnd);
 			M = AlignMatrix(glm::normalize(node.weightWorldStartToEnd)) * M;
-			M[3] = glm::vec4(node.weightWorldStartPoint + node.weightWorldStartToEnd * 1.f, 1.f);
+			M[3] = glm::vec4(node.weightWorldStartPoint, 1.f);
 			glm::mat4 MVP = VP * M;
 			glm::vec3 color(0.5f);
 
 			if (node.isCurrentJoint)
+			{
 				color = glm::vec3(1.f, 0.7f, 0.2f);
+				glLineWidth(2.f);
+			}
 
 			flatShader.SetMat4("u_MVP", &MVP[0][0]);
 			flatShader.SetVec3("u_color", &color[0]);
 
-			weightVolumeMesh.Draw(0);
+			weightVolumeMesh.Draw(0, GL_LINES);
+			glLineWidth(1.f);
 		}
 
-		glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 		weightVolumeMesh.Unbind();
 	}
 	else if (animationFactory.CurrentStage() == AnimationObjectFactory::Stage::Animating)
 	{
 		auto& builder = animationFactory.GetAnimationBuilder();
-		builder.GetJointNodes(currentKeyframeTime, jointNodes);
+		builder.GetJointNodes(p_buildingState->currentKeyframeTime, p_buildingState->jointNodes);
 
 		jointMesh.Bind();
 
-		for (auto& node : jointNodes)
+		for (auto& node : p_buildingState->jointNodes)
 		{
 			glm::mat4 M(0.1f);
 			M[3] = glm::vec4(node.jointWorldPosition, 1.f);
 			glm::mat4 MVP = VP * M;
 			glm::vec3 color(0.5f);
 
-			if (node.isCurrentJoint)
+			if (p_buildingState->keyframeIsSelected && node.isCurrentJoint)
 				color = glm::vec3(1.f, 0.7f, 0.2f);
 
 			flatShader.SetMat4("u_MVP", &MVP[0][0]);
@@ -393,7 +401,8 @@ void App_SetupTest::DrawUI(float deltaTime)
 	{
 		if (ImGui::Button("New animation"))
 		{
-			animationObject = nullptr;// destroy current animation
+			delete p_buildingState;
+			p_buildingState = new AnimationBuildingState();
 			animationFactory.StartBuildingSkeleton();
 		}
 	}
@@ -460,9 +469,14 @@ void App_SetupTest::DrawUI(float deltaTime)
 		ImGui::Text("Keyframe:");
 
 		if (ImGui::Button("Add new keyframe"))
-			builder.AddAndGoToKeyframe(currentKeyframeTime);
+		{
+			builder.AddAndGoToKeyframe(p_buildingState->currentKeyframeTime);
+			p_buildingState->keyframeIsSelected = true;
+		}
 
-		ImGui::SliderFloat("New keyframe timestamp", &currentKeyframeTime, 0.01f, 0.99f, "%.3f", 1.f);
+		if (ImGui::SliderFloat("New keyframe timestamp", &p_buildingState->currentKeyframeTime, 0.f, 1.f, "%.3f", 1.f))
+			p_buildingState->keyframeIsSelected = false;
+
 		ImGui::NewLine();
 
 		if (builder.CanKeyframeBeRemoved() && ImGui::Button("Remove keyframe"))
@@ -472,55 +486,62 @@ void App_SetupTest::DrawUI(float deltaTime)
 		{
 			std::string label = "Go to keyframe " + std::to_string(i);
 			
-			if (builder.GetKeyframeIndex() == i)
+			if (p_buildingState->keyframeIsSelected && builder.GetKeyframeIndex() == i)
 				label += " <";
 
 			if (ImGui::Button(label.c_str()))
+			{
 				builder.GoToKeyframe(i);
+				p_buildingState->currentKeyframeTime = builder.GetKeyframeTime();
+				p_buildingState->keyframeIsSelected = true;
+			}
 		}
 
 		ImGui::NewLine();
 
 		// posing and navigating skeleton
-		ImGui::Text("Pose:");
-
-		for (size_t i = 0; i < builder.GetChildCount(); i++)
+		if (p_buildingState->keyframeIsSelected)
 		{
-			std::string label = "Go to child joint " + std::to_string(i);
-			if (ImGui::Button(label.c_str()))
-				builder.GoToChild(i);
-		}
+			ImGui::Text("Pose:");
 
-		if (builder.HasParent() && ImGui::Button("Go to parent"))
-			builder.GoToParent();
+			for (size_t i = 0; i < builder.GetChildCount(); i++)
+			{
+				std::string label = "Go to child joint " + std::to_string(i);
+				if (ImGui::Button(label.c_str()))
+					builder.GoToChild(i);
+			}
 
-		ImGui::NewLine();
+			if (builder.HasParent() && ImGui::Button("Go to parent"))
+				builder.GoToParent();
 
-		// joint transform configuration
-		AnimationTransform transform = builder.GetJointTransform();
+			ImGui::NewLine();
 
-		ImGui::Text("Transform:");
-		bool change = ImGui::DragFloat3("position", &transform.position[0], 0.05f, -10.f, 10.f, "%.3f", 1.f);
-		change |= ImGui::DragFloat3("rotation", &transform.eulerAngles[0], 0.05f, -4.f, 4.f, "%.3f", 1.f);
-		change |= ImGui::DragFloat("scale", &transform.scale, 0.05f, 0.01f, 20.f, "%.3f", 1.f);
-		ImGui::NewLine();
+			// joint transform configuration
+			AnimationTransform transform = builder.GetJointTransform();
 
-		if (change)
-		{
-			builder.SetJointTransform(transform);
+			ImGui::Text("Transform:");
+			bool change = ImGui::DragFloat3("position", &transform.position[0], 0.05f, -10.f, 10.f, "%.3f", 1.f);
+			change |= ImGui::DragFloat3("rotation", &transform.eulerAngles[0], 0.05f, -4.f, 4.f, "%.3f", 1.f);
+			change |= ImGui::DragFloat("scale", &transform.scale, 0.05f, 0.01f, 20.f, "%.3f", 1.f);
+			ImGui::NewLine();
+
+			if (change)
+			{
+				builder.SetJointTransform(transform);
+			}
 		}
 
 		// animation creation
 		if (ImGui::Button("Complete animation"))
 		{
-			animationObject = builder.Complete().CompleteObject();
-			animationObject->animationPlayer.duration = newAnimationDuration;
-			animationObject->animationPlayer.loop = newAnimationLoop;
+			p_buildingState->animationObject = builder.Complete().CompleteObject();
+			p_buildingState->animationObject->animationPlayer.duration = p_buildingState->newAnimationDuration;
+			p_buildingState->animationObject->animationPlayer.loop = p_buildingState->newAnimationLoop;
 		}
 
-		ImGui::DragFloat("Duration", &newAnimationDuration, 1.f, 0.01f, 60.f, "%.3f", 1.f);
-		if (ImGui::RadioButton("Loop", newAnimationLoop))
-			newAnimationLoop = !newAnimationLoop;
+		ImGui::DragFloat("Duration", &p_buildingState->newAnimationDuration, 0.02f, 0.1f, 60.f, "%.3f", 1.f);
+		if (ImGui::RadioButton("Loop", p_buildingState->newAnimationLoop))
+			p_buildingState->newAnimationLoop = !p_buildingState->newAnimationLoop;
 	}
 
 	ImGui::End();
@@ -528,8 +549,8 @@ void App_SetupTest::DrawUI(float deltaTime)
 
 void App_SetupTest::Init()
 {
-	window.Init(1000, 800, "deformed sdf");
-	//window.Init(1600, 1200, "deformed sdf");
+	//window.Init(1000, 800, "deformed sdf");
+	window.Init(1600, 1200, "deformed sdf");
 
 	glPatchParameteri(GL_PATCH_VERTICES, 3);
 
@@ -564,7 +585,7 @@ void App_SetupTest::Init()
 	);
 
 	Engine::GenerateUnitSphere(jointMesh);
-	Engine::GenerateUnitCapsule(weightVolumeMesh);
+	Engine::GenerateUnitLine(weightVolumeMesh);
 	flatShader.Reload("assets/shaders/flat_vert.glsl", "assets/shaders/flat_frag.glsl");
 
 	glGenFramebuffers(1, &backfaceRenderTarget.framebuffer);
@@ -642,8 +663,8 @@ void App_SetupTest::UpdateLoop()
 			}
 		}
 
-		if (animationObject != nullptr)
-			animationObject->Update(deltaTime);
+		if (p_buildingState != nullptr && p_buildingState->animationObject != nullptr)
+			p_buildingState->animationObject->Update(deltaTime);
 		
 		DrawSDf();
 		DrawAnimationData();
@@ -656,5 +677,6 @@ void App_SetupTest::UpdateLoop()
 
 void App_SetupTest::Deinit()
 {
+	delete p_buildingState;
 	window.Deinit();
 }

@@ -35,6 +35,20 @@ struct Kelvinlet
 	Kelvinlet();
 };
 
+struct AnimationBuildingState
+{
+	std::vector<BuildingJointNode> buildingJointNodes;
+	std::vector<JointNode> jointNodes;
+	Engine::AnimationPose buildingAnimationPose;
+	float currentKeyframeTime;
+	bool keyframeIsSelected;
+	float newAnimationDuration;
+	bool newAnimationLoop;
+	std::shared_ptr<AnimationObject> animationObject;
+
+	AnimationBuildingState();
+};
+
 class App_SetupTest
 {
 public:
@@ -53,13 +67,7 @@ public:
 	Engine::Shader flatShader;
 
 	AnimationObjectFactory animationFactory;
-	std::vector<BuildingJointNode> buildingJointNodes;
-	std::vector<JointNode> jointNodes;
-	Engine::AnimationPose buildingAnimationPose;
-	float currentKeyframeTime;
-	float newAnimationDuration;
-	bool newAnimationLoop;
-	std::shared_ptr<AnimationObject> animationObject;
+	AnimationBuildingState* p_buildingState;
 
 	App_SetupTest();
 

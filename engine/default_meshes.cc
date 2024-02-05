@@ -3,7 +3,7 @@
 
 namespace Engine
 {
-	void GenerateUnitLine(RenderMesh& outMesh, MeshGeneratorSettings settings)
+	void GenerateUnitLine(RenderMesh& outMesh)
 	{
 		GLubyte indices[]
 		{
@@ -13,7 +13,7 @@ namespace Engine
 		GLfloat positions[]
 		{
 			0.f, 0.f, 0.f,
-			0.f, 0.f, 1.f
+			0.f, 1.f, 0.f
 		};
 
 		DataBuffer indexBuffer;

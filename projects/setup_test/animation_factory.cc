@@ -102,6 +102,7 @@ AnimationObjectFactory::SkeletonBuilder&
 AnimationObjectFactory::SkeletonBuilder::AddChild()
 {
 	p_currentJoint->AddChild();
+	p_currentJoint->children.back()->localTransform.position = p_currentJoint->weightVolume.startToEnd;
 	return *this;
 }
 
@@ -252,6 +253,11 @@ size_t AnimationObjectFactory::AnimationBuilder::GetKeyframeIndex()
 	return currentKeyframeIndex;
 }
 
+float AnimationObjectFactory::AnimationBuilder::GetKeyframeTime()
+{
+	return animation.keyframes[currentKeyframeIndex]->timestamp;
+}
+
 bool AnimationObjectFactory::AnimationBuilder::CanKeyframeBeRemoved()
 {
 	return currentKeyframeIndex > 1 && currentKeyframeIndex + 1 < animation.keyframes.size();
@@ -300,7 +306,7 @@ bool AnimationObjectFactory::AnimationBuilder::HasParent() const
 	return p_currentJoint->p_parent != nullptr;
 }
 
-void BuildJointNode(
+void BuildJointNodes(
 	const Engine::Joint& starLeftJoint,
 	const Engine::Joint& startRightJoint,
 	const glm::mat4& parentWorldTransform,
@@ -317,9 +323,9 @@ void BuildJointNode(
 
 	for (size_t i = 0; i < starLeftJoint.childCount; i++)
 	{
-		BuildJointNode(
+		BuildJointNodes(
 			starLeftJoint.p_children[i],
-			starLeftJoint.p_children[i],
+			startRightJoint.p_children[i],
 			worldTransform,
 			p_currentJoint,
 			alpha,
@@ -333,16 +339,29 @@ void AnimationObjectFactory::AnimationBuilder::GetJointNodes(
 	std::vector<JointNode>& nodes
 ) const
 {
+	nodes.clear();
+
+	if (time == 1.f)
+	{
+		BuildJointNodes(
+			animation.keyframes.back()->skeleton.root,
+			animation.keyframes.back()->skeleton.root,
+			glm::mat4(1.f),
+			p_currentJoint,
+			1.f,
+			nodes
+		);
+		return;
+	}
+
 	for (size_t i = 1; i < animation.keyframes.size(); i++)
 	{
-		if (animation.keyframes[i]->timestamp >= time)
+		if (animation.keyframes[i]->timestamp > time)
 		{
 			float alpha = (time - animation.keyframes[i - 1]->timestamp) /
 				(animation.keyframes[i]->timestamp - animation.keyframes[i - 1]->timestamp);
 
-			nodes.clear();
-
-			BuildJointNode(
+			BuildJointNodes(
 				animation.keyframes[i - 1]->skeleton.root,
 				animation.keyframes[i]->skeleton.root,
 				glm::mat4(1.f),
