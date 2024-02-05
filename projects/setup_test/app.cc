@@ -280,7 +280,7 @@ void App_SetupTest::DrawSDf()
 glm::mat4 AlignMatrix(const glm::vec3& up)
 {
 	glm::vec3 right(1.f, 0.f, 0.f);
-	if (glm::abs(up.x) == 1.f)
+	if (glm::abs(up.x) > 0.99f)
 		right = glm::vec3(0.f, 1.f, 0.f);
 
 	glm::vec3 forward = glm::normalize(glm::cross(right, up));
