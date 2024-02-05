@@ -39,6 +39,8 @@ struct AnimationBuildingState
 {
 	std::vector<BuildingJointNode> buildingJointNodes;
 	std::vector<JointNode> jointNodes;
+	std::vector<Engine::JointWeightVolume> buildingWorldWeightVolumes;
+	size_t currentJointIndex;
 	Engine::AnimationPose buildingAnimationPose;
 	float currentKeyframeTime;
 	bool keyframeIsSelected;
@@ -68,6 +70,8 @@ public:
 
 	AnimationObjectFactory animationFactory;
 	AnimationBuildingState* p_buildingState;
+	std::vector<std::shared_ptr<AnimationObject>> createdAnimationObjects;
+	size_t animationObjectIndex;
 
 	App_SetupTest();
 

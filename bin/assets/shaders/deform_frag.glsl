@@ -9,7 +9,8 @@ out vec4 o_color;
 out float gl_FragDepth;
 
 // debug settings
-uniform int u_renderMode;// 0 = sphere trace, 1 = default (mesh)
+uniform int u_renderMode;// 0 = sphere trace, 1 = mesh
+uniform int u_boneIndex;// used to color based on weight (if not -1)
 
 uniform mat3 u_N;
 uniform mat4 u_MVP;
@@ -79,18 +80,6 @@ vec3 SolveBS23(
 	return y1;
 }
 
-vec3 Fold(vec3 p, vec3 normal)
-{
-	return p - 2. * min(0., dot(p, normal)) * normal;
-}
-
-vec3 RotX(vec3 p, float angle)
-{
-	float startAngle = atan(p.y, p.z);
-	float radius = length(p.yz);
-	return vec3(p.x, radius * sin(startAngle + angle), radius * cos(startAngle + angle));
-}
-
 float Capsule(vec3 p, vec3 a, vec3 b, float radius)
 {
 	vec3 pa = p - a;
@@ -105,39 +94,14 @@ float Box(vec3 p, vec3 b)
 	return length(max(q, 0.)) + min(max(q.x, max(q.y, q.z)), 0.);
 }
 
-float Tree(vec3 p)
-{	
-	vec2 dim = vec2(1., 8.);
-	float d = Capsule(p, vec3(0., -1., 0.), vec3(0., 1. + dim.y, 0.), dim.x);
-	vec3 scale = vec3(1.);
-	vec3 change = vec3(0.7,0.68,0.7);
-	
-	const vec3 n1 = normalize(vec3(1., 0., 1.)); 
-	const vec3 n2 = vec3(n1.x, 0., -n1.z);
-	const vec3 n3 = vec3(-n1.x, 0., n1.z);
-	
-	for(int i=0; i<7; i++)
-	{
-		p = Fold(p, n1);	
-		p = Fold(p, n2);	
-		p = Fold(p, n3);	
-		
-		p.y -= scale.y*dim.y;
-		p.z = abs(p.z);
-		p = RotX(p, 3.1415*0.25);
-		
-		scale *= change;
-		
-		d = min(d, Capsule(p, vec3(0.), vec3(0., dim.y * scale.y, 0.), scale.x*dim.x));
-	}
-	
-	return d;
-}
-
 float Sdf(vec3 p)
 {
-	return Box(p, vec3(0.5, 2., 0.5));
-	//return Tree(p * 5.) / 5.;
+	float torso = Capsule(p, vec3(0., -0.5, 0.), vec3(0., 0.5, 0.), 0.25);
+	vec3 mirroredP = vec3(abs(p.x), p.y, p.z);
+	float arms = Capsule(mirroredP, vec3(0.25, 0.5, 0.), vec3(0.75, 0.5, 0.), 0.25);
+	float legs = Capsule(mirroredP, vec3(0.25, -0.5, 0.), vec3(0.25, -1., 0.), 0.25);
+
+	return min(torso, min(arms, legs));
 }
 
 float OffsetError(float defDistTraveled)
@@ -250,6 +214,13 @@ vec3 DeformationColor(vec3 undefPoint)
 	return color;
 }
 
+vec3 BoneWeightColor(vec3 undefPoint)
+{
+	float weight = BoneWeight(undefPoint, u_boneIndex);
+	
+	return vec3(weight, 0., 0.);
+}
+
 vec3 Shade(vec3 undefHitPoint, vec3 defDirection, vec3 lightDir)
 {
 	vec3 worldNormal = WorldSdfGradient(undefHitPoint);
@@ -259,7 +230,17 @@ vec3 Shade(vec3 undefHitPoint, vec3 defDirection, vec3 lightDir)
 	
 	vec3 ambientColor = vec3(0.1, 0.1, 0.2);
 	vec3 lightColor = vec3(1., 0.9, 0.7);
-	vec3 albedo = DeformationColor(undefHitPoint);
+	vec3 albedo = vec3(0.);
+	
+	if(u_boneIndex != -1)
+	{
+		albedo = BoneWeightColor(undefHitPoint);
+	}
+	else
+	{
+		albedo = DeformationColor(undefHitPoint);
+	}
+	
 	
 	return albedo * (ambientColor + lightColor * (diff + spec));
 }

@@ -4,18 +4,6 @@
 #include "input.h"
 #include "default_meshes.h"
 
-glm::vec3 Fold(const glm::vec3& p, const glm::vec3& normal)
-{
-	return p - 2.f * glm::min(0.f, glm::dot(p, normal)) * normal;
-}
-
-glm::vec3 RotX(const glm::vec3& p, float angle)
-{
-	float startAngle = glm::atan(p.y, p.z);
-	float radius = glm::length(glm::vec2(p.y, p.z));
-	return glm::vec3(p.x, radius * glm::sin(startAngle + angle), radius * glm::cos(startAngle + angle));
-}
-
 float Box(glm::vec3 p, glm::vec3 b)
 {
 	glm::vec3 q = glm::abs(p) - b;
@@ -30,38 +18,14 @@ float Capsule(const glm::vec3& p, const glm::vec3& a, const glm::vec3& b, float 
 	return glm::length(pa - ba * h) - radius;
 }
 
-float Tree(glm::vec3 p)
-{
-	glm::vec2 dim = glm::vec2(1.f, 8.f);
-	float d = Capsule(p, glm::vec3(0.f, -1.f, 0.f), glm::vec3(0.f, 1.f + dim.y, 0.f), dim.x);
-	glm::vec3 scale = glm::vec3(1.f);
-	glm::vec3 change = glm::vec3(0.7f, 0.68f, 0.7f);
-
-	const glm::vec3 n1 = normalize(glm::vec3(1.f, 0.f, 1.f));
-	const glm::vec3 n2 = glm::vec3(n1.x, 0.f, -n1.z);
-	const glm::vec3 n3 = glm::vec3(-n1.x, 0.f, n1.z);
-
-	for (int i = 0; i < 7; i++)
-	{
-		p = Fold(p, n1);
-		p = Fold(p, n2);
-		p = Fold(p, n3);
-
-		p.y -= scale.y * dim.y;
-		p.z = abs(p.z);
-		p = RotX(p, 3.1415f * 0.25f);
-		scale *= change;
-
-		d = glm::min(d, Capsule(p, glm::vec3(0.f), glm::vec3(0.f, dim.y * scale.y, 0.), scale.x * dim.x));
-	}
-
-	return d;
-}
-
 float Sdf(const glm::vec3& p)
 {
-	return Box(p, glm::vec3(0.5f, 2.f, 0.5f));
-	//return Tree(p * 5.f) / 5.f;
+	float torso = Capsule(p, glm::vec3(0.f, -0.5f, 0.f), glm::vec3(0.f, 0.5f, 0.f), 0.25f);
+	glm::vec3 mirroredP = glm::vec3(glm::abs(p.x), p.y, p.z);
+	float arms = Capsule(mirroredP, glm::vec3(0.25f, 0.5f, 0.f), glm::vec3(0.75f, 0.5f, 0.f), 0.25f);
+	float legs = Capsule(mirroredP, glm::vec3(0.25f, -0.5f, 0.f), glm::vec3(0.25f, -1.f, 0.f), 0.25f);
+
+	return glm::min(torso, glm::min(arms, legs));
 }
 
 
@@ -96,6 +60,7 @@ Kelvinlet::Kelvinlet() :
 
 
 AnimationBuildingState::AnimationBuildingState() :
+	currentJointIndex(0),
 	currentKeyframeTime(0.f),
 	keyframeIsSelected(true),
 	newAnimationDuration(5.f),
@@ -105,7 +70,8 @@ AnimationBuildingState::AnimationBuildingState() :
 
 App_SetupTest::App_SetupTest() :
 	showDebugMesh(false),
-	p_buildingState(nullptr)
+	p_buildingState(nullptr),
+	animationObjectIndex(0)
 {}
 
 void App_SetupTest::HandleInput(float deltaTime)
@@ -165,10 +131,32 @@ void SetKelvinletShaderData(Engine::Shader& shader, const Kelvinlet& kelvinlet, 
 	}
 }
 
-void SetSkeletonShaderData(
-	Engine::Shader& shader, 
+void SetShaderBuildingWeightVolumes
+(
+	Engine::Shader& shader,
+	const std::vector<Engine::JointWeightVolume>& worldWeightVolumes
+)
+{
+	for (size_t i = 0; i < worldWeightVolumes.size(); i++)
+	{
+		std::string boneWeightName("u_boneWeightVolumes[" + std::to_string(i) + "]");
+
+		const Engine::JointWeightVolume& weightVolume = worldWeightVolumes[i];
+
+		float length = glm::length(weightVolume.startToEnd);
+		glm::vec3 direction = weightVolume.startToEnd / length;
+
+		shader.SetVec3(boneWeightName + ".startPoint", &weightVolume.startPoint[0]);
+		shader.SetVec3(boneWeightName + ".direction", &direction[0]);
+		shader.SetFloat(boneWeightName + ".length", length);
+		shader.SetFloat(boneWeightName + ".falloffRate", weightVolume.falloffRate);
+	}
+}
+
+void SetShaderSkeletonData(
+	Engine::Shader& shader,
 	size_t jointCount,
-	const Engine::BindPose* p_bindPose, 
+	const Engine::BindPose* p_bindPose,
 	const Engine::AnimationPose* p_animationPose
 )
 {
@@ -178,15 +166,15 @@ void SetSkeletonShaderData(
 		std::string boneWeightName("u_boneWeightVolumes[" + indexStr + "]");
 		std::string boneMatrixName("u_boneMatrices[" + indexStr + "]");
 
-		float lengthSquared = glm::dot(
-			p_bindPose->p_worldWeightVolumes[i].startToEnd,
-			p_bindPose->p_worldWeightVolumes[i].startToEnd
-		);
+		const Engine::JointWeightVolume& weightVolume = p_bindPose->p_worldWeightVolumes[i];
 
-		shader.SetVec3(boneWeightName + ".startPoint", &p_bindPose->p_worldWeightVolumes[i].startPoint[0]);
-		shader.SetVec3(boneWeightName + ".startToEnd", &p_bindPose->p_worldWeightVolumes[i].startToEnd[0]);
-		shader.SetFloat(boneWeightName + ".lengthSquared", lengthSquared);
-		shader.SetFloat(boneWeightName + ".falloffRate", p_bindPose->p_worldWeightVolumes[i].falloffRate);
+		float length = glm::length(weightVolume.startToEnd);
+		glm::vec3 direction = weightVolume.startToEnd / length;
+
+		shader.SetVec3(boneWeightName + ".startPoint", &weightVolume.startPoint[0]);
+		shader.SetVec3(boneWeightName + ".direction", &direction[0]);
+		shader.SetFloat(boneWeightName + ".length", length);
+		shader.SetFloat(boneWeightName + ".falloffRate", weightVolume.falloffRate);
 		shader.SetMat4(boneMatrixName, &p_animationPose->p_deformationMatrices[i][0][0]);
 	}
 	shader.SetInt("u_bonesCount", (GLint)jointCount);
@@ -214,11 +202,12 @@ void App_SetupTest::DrawSDf()
 		p_bindPose = &builder.GetBindPose();
 		p_animationPose = &builder.GetAnimationPose(p_buildingState->currentKeyframeTime);
 	}
-	else if(animationFactory.CurrentStage() == AnimationObjectFactory::Stage::None && p_buildingState != nullptr && p_buildingState->animationObject != nullptr)
+	else if(animationFactory.CurrentStage() == AnimationObjectFactory::Stage::None && createdAnimationObjects.size() > 0)
 	{
-		jointCount = p_buildingState->animationObject->jointCount;
-		p_bindPose = &p_buildingState->animationObject->bindPose;
-		p_animationPose = &p_buildingState->animationObject->animationPose;
+		auto& animationObject = createdAnimationObjects[animationObjectIndex];
+		jointCount = animationObject->jointCount;
+		p_bindPose = &animationObject->bindPose;
+		p_animationPose = &animationObject->animationPose;
 	}
 
 	// draw backface to get max distance
@@ -234,7 +223,7 @@ void App_SetupTest::DrawSDf()
 	backfaceShader.SetMat4("u_MVP", &MVP[0][0]);
 	backfaceShader.SetVec3("u_localCameraPos", &localCamPos[0]);
 
-	SetSkeletonShaderData(backfaceShader, jointCount, p_bindPose, p_animationPose);
+	SetShaderSkeletonData(backfaceShader, jointCount, p_bindPose, p_animationPose);
 	
 	sdfMesh.Draw(0, GL_PATCHES);
 
@@ -253,10 +242,22 @@ void App_SetupTest::DrawSDf()
 	sdfShader.SetFloat("u_pixelRadius", pixelRadius);
 	sdfShader.SetVec2("u_screenSize", &screenSize[0]);
 
+	int jointIndex = -1;
+
+	if (animationFactory.CurrentStage() == AnimationObjectFactory::Stage::BuildingSkeleton && p_buildingState->buildingJointNodes.size() > 0)
+	{
+		jointIndex = (int)p_buildingState->currentJointIndex;
+		animationFactory.GetSkeletonBuilder().GetWorldJointWeightVolumes(p_buildingState->buildingWorldWeightVolumes);
+		SetShaderBuildingWeightVolumes(sdfShader, p_buildingState->buildingWorldWeightVolumes);
+	}
+	else
+	{
+		SetShaderSkeletonData(sdfShader, jointCount, p_bindPose, p_animationPose);
+	}
+	sdfShader.SetInt("u_boneIndex", jointIndex);
+
 	glActiveTexture(GL_TEXTURE0);
 	glBindTexture(GL_TEXTURE_2D, backfaceRenderTarget.texture);
-
-	SetSkeletonShaderData(sdfShader, jointCount, p_bindPose, p_animationPose);
 
 	sdfMesh.Draw(0, GL_PATCHES);
 
@@ -279,7 +280,7 @@ void App_SetupTest::DrawSDf()
 glm::mat4 AlignMatrix(const glm::vec3& up)
 {
 	glm::vec3 right(1.f, 0.f, 0.f);
-	if (up.x == 1.f)
+	if (glm::abs(up.x) == 1.f)
 		right = glm::vec3(0.f, 1.f, 0.f);
 
 	glm::vec3 forward = glm::normalize(glm::cross(right, up));
@@ -311,15 +312,18 @@ void App_SetupTest::DrawAnimationData()
 
 		jointMesh.Bind();
 
-		for (auto& node : p_buildingState->buildingJointNodes)
+		for (size_t i=0; i < p_buildingState->buildingJointNodes.size(); i++)
 		{
 			glm::mat4 M(0.1f);
-			M[3] = glm::vec4(node.jointWorldPosition, 1.f);
+			M[3] = glm::vec4(p_buildingState->buildingJointNodes[i].jointWorldPosition, 1.f);
 			glm::mat4 MVP = VP * M;
 			glm::vec3 color(0.5f);
 
-			if (node.isCurrentJoint)
+			if (p_buildingState->buildingJointNodes[i].isCurrentJoint)
+			{
 				color = glm::vec3(1.f, 0.7f, 0.2f);
+				p_buildingState->currentJointIndex = i;
+			}
 
 			flatShader.SetMat4("u_MVP", &MVP[0][0]);
 			flatShader.SetVec3("u_color", &color[0]);
@@ -362,15 +366,18 @@ void App_SetupTest::DrawAnimationData()
 
 		jointMesh.Bind();
 
-		for (auto& node : p_buildingState->jointNodes)
+		for (size_t i=0; i < p_buildingState->jointNodes.size(); i++)
 		{
 			glm::mat4 M(0.1f);
-			M[3] = glm::vec4(node.jointWorldPosition, 1.f);
+			M[3] = glm::vec4(p_buildingState->jointNodes[i].jointWorldPosition, 1.f);
 			glm::mat4 MVP = VP * M;
 			glm::vec3 color(0.5f);
 
-			if (p_buildingState->keyframeIsSelected && node.isCurrentJoint)
+			if (p_buildingState->keyframeIsSelected && p_buildingState->jointNodes[i].isCurrentJoint)
+			{
 				color = glm::vec3(1.f, 0.7f, 0.2f);
+				p_buildingState->currentJointIndex = i;
+			}
 
 			flatShader.SetMat4("u_MVP", &MVP[0][0]);
 			flatShader.SetVec3("u_color", &color[0]);
@@ -399,11 +406,29 @@ void App_SetupTest::DrawUI(float deltaTime)
 	auto stage = animationFactory.CurrentStage();
 	if (stage == AnimationObjectFactory::Stage::None)
 	{
+		for (size_t i=0; i<createdAnimationObjects.size(); i++)
+		{
+			std::string label = "Play animation " + std::to_string(i);
+
+			if (animationObjectIndex == i)
+				label += " <";
+
+			if (ImGui::Button(label.c_str()))
+			{
+				animationObjectIndex = i;
+			}
+		}
+
 		if (ImGui::Button("New animation"))
 		{
 			delete p_buildingState;
 			p_buildingState = new AnimationBuildingState();
 			animationFactory.StartBuildingSkeleton();
+		}
+		if (createdAnimationObjects.size() > 0 && ImGui::Button("Remove animation"))
+		{
+			createdAnimationObjects.erase(createdAnimationObjects.begin() + animationObjectIndex);
+			animationObjectIndex = 0;
 		}
 	}
 	else if (stage == AnimationObjectFactory::Stage::BuildingSkeleton)
@@ -426,7 +451,7 @@ void App_SetupTest::DrawUI(float deltaTime)
 				builder.GoToChild(i);
 		}
 
-		if (builder.HasParent() && ImGui::Button("Go to parent"))
+		if (builder.HasParent() && ImGui::Button("Go to parent joint"))
 			builder.GoToParent();
 
 		ImGui::NewLine();
@@ -451,7 +476,7 @@ void App_SetupTest::DrawUI(float deltaTime)
 		ImGui::Text("Weight volume:");
 		change = ImGui::DragFloat3("start", &weightVolume.startPoint[0], 0.05f, -10.f, 10.f, "%.3f", 1.f);
 		change |= ImGui::DragFloat3("direction", &weightVolume.startToEnd[0], 0.05f, -10.f, 10.f, "%.3f", 1.f);
-		change |= ImGui::DragFloat("falloff rate", &weightVolume.falloffRate, 0.2f, 1.f, 30.f, "%.3f", 1.f);
+		change |= ImGui::DragFloat("falloff rate", &weightVolume.falloffRate, 0.5f, 1.f, 100.f, "%.3f", 1.f);
 		ImGui::NewLine();
 
 		if (change)
@@ -511,7 +536,7 @@ void App_SetupTest::DrawUI(float deltaTime)
 					builder.GoToChild(i);
 			}
 
-			if (builder.HasParent() && ImGui::Button("Go to parent"))
+			if (builder.HasParent() && ImGui::Button("Go to parent joint"))
 				builder.GoToParent();
 
 			ImGui::NewLine();
@@ -537,6 +562,9 @@ void App_SetupTest::DrawUI(float deltaTime)
 			p_buildingState->animationObject = builder.Complete().CompleteObject();
 			p_buildingState->animationObject->animationPlayer.duration = p_buildingState->newAnimationDuration;
 			p_buildingState->animationObject->animationPlayer.loop = p_buildingState->newAnimationLoop;
+
+			createdAnimationObjects.push_back(p_buildingState->animationObject);
+			animationObjectIndex = createdAnimationObjects.size() - 1;
 		}
 
 		ImGui::DragFloat("Duration", &p_buildingState->newAnimationDuration, 0.02f, 0.1f, 60.f, "%.3f", 1.f);
@@ -562,10 +590,10 @@ void App_SetupTest::Init()
 	Engine::TriangulateScalarField(
 		sdfMesh,
 		Sdf,
-		glm::vec3(-1.f, -2.5f, -1.f),
-		glm::vec3(1.f, 2.5f, 1.f),
-		0.125f,
-		glm::length(glm::vec3(0.125f))
+		glm::vec3(-1.5f, -1.75f, -1.5f),
+		glm::vec3(1.5f, 1.75f, 1.5f),
+		0.05f,
+		glm::length(glm::vec3(0.05f))
 	);
 	sdfShader.Reload(
 		"assets/shaders/deform_vert.glsl",
@@ -663,8 +691,8 @@ void App_SetupTest::UpdateLoop()
 			}
 		}
 
-		if (p_buildingState != nullptr && p_buildingState->animationObject != nullptr)
-			p_buildingState->animationObject->Update(deltaTime);
+		if (animationFactory.CurrentStage() == AnimationObjectFactory::Stage::None && createdAnimationObjects.size() > 0)
+			createdAnimationObjects[animationObjectIndex]->Update(deltaTime);
 		
 		DrawSDf();
 		DrawAnimationData();

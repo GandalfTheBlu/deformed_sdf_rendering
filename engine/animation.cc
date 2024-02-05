@@ -7,7 +7,7 @@ namespace Engine
 	JointWeightVolume::JointWeightVolume() :
 		startPoint(0.f),
 		startToEnd(0.f, 1.f, 0.f),
-		falloffRate(10.f)
+		falloffRate(1.f)
 	{}
 
 

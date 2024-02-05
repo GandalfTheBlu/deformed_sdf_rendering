@@ -193,6 +193,31 @@ void AnimationObjectFactory::SkeletonBuilder::GetBuildingJointNodes(
 	BuildBuildingJointNodes(skeleton.root, glm::mat4(1.f), p_currentJoint, nodes);
 }
 
+void BuildWeightVolumes(
+	const Engine::BuildingJoint& startBuildingJoint,
+	const glm::mat4& parentWorldTransform,
+	std::vector<Engine::JointWeightVolume>& weightVolumes
+)
+{
+	glm::mat4 worldTransform = parentWorldTransform * startBuildingJoint.localTransform.Matrix();
+	weightVolumes.emplace_back();
+	auto& weightVolume = weightVolumes.back();
+	weightVolume.startPoint = glm::vec3(worldTransform * glm::vec4(startBuildingJoint.weightVolume.startPoint, 1.f));
+	weightVolume.startToEnd = glm::vec3(parentWorldTransform * glm::vec4(startBuildingJoint.weightVolume.startToEnd, 0.f));
+	weightVolume.falloffRate = startBuildingJoint.weightVolume.falloffRate;
+
+	for (size_t i = 0; i < startBuildingJoint.children.size(); i++)
+		BuildWeightVolumes(*startBuildingJoint.children[i], worldTransform, weightVolumes);
+}
+
+void AnimationObjectFactory::SkeletonBuilder::GetWorldJointWeightVolumes(
+	std::vector<Engine::JointWeightVolume>& weightVolumes
+) const
+{
+	weightVolumes.clear();
+	BuildWeightVolumes(skeleton.root, glm::mat4(1.f), weightVolumes);
+}
+
 AnimationObjectFactory& AnimationObjectFactory::SkeletonBuilder::Complete()
 {
 	skeleton.BuildSkeletonAndBindPose(

@@ -130,6 +130,7 @@ public:
 
 		// for visualization
 		void GetBuildingJointNodes(std::vector<BuildingJointNode>& nodes) const;
+		void GetWorldJointWeightVolumes(std::vector<Engine::JointWeightVolume>& weightVolumes) const;
 
 		AnimationObjectFactory& Complete();
 	};

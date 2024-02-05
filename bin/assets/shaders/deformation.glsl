@@ -13,8 +13,8 @@ uniform float u_kelvinletSharpness;
 struct BoneWeightVolume
 {
 	vec3 startPoint;
-	vec3 startToEnd;
-	float lengthSquared;
+	vec3 direction;
+	float length;
 	float falloffRate;
 };
 
@@ -34,30 +34,27 @@ vec3 Kelvinlet(vec3 point, vec3 center, vec3 force)
 #endif
 
 #ifdef BONE_MODE
-float CheapExp(float x) 
-{
-    x = 1. + x / 256.;
-    x *= x;
-    x *= x;
-    x *= x;
-    x *= x;
-    x *= x;
-    return x;
-}
 
-float BoneWeight(vec3 p, int boneIndex)
+float BoneWeight(vec3 point, int boneIndex)
 {
+	// calculate squared length to line segment defined by weight volume
 	BoneWeightVolume bone = u_boneWeightVolumes[boneIndex];
-	vec3 startToPoint = p - bone.startPoint;
-	float h = clamp(dot(startToPoint, bone.startToEnd) / bone.lengthSquared, 0., 1.);
-	vec3 v = startToPoint - bone.startToEnd * h;
-	float d = dot(v, v);
+	vec3 startToPoint = point - bone.startPoint;
+	float projectionLength = clamp(dot(startToPoint, bone.direction), 0., bone.length);
+	vec3 startToProjection = bone.direction * projectionLength;
+	vec3 pointToProjection = startToProjection - startToPoint;
+	float distanceSquared = dot(pointToProjection, pointToProjection);
 	
-	return CheapExp(-bone.falloffRate*d);
+	return 1./(1. + bone.falloffRate * distanceSquared * distanceSquared);
 }
 
 vec3 LinearBlend(vec3 point)
 {	
+	if(u_bonesCount == 0)
+	{
+		return point;
+	}
+
 	float weightSum = 0.;
 	vec3 result = vec3(0.);
 	
@@ -68,12 +65,7 @@ vec3 LinearBlend(vec3 point)
 		weightSum += weight;
 	}
 	
-	if(weightSum > 0.)
-	{
-		return result * (1. / weightSum);
-	}
-	
-	return point;
+	return result * (1. / weightSum);
 }
 #endif
 
