@@ -24,6 +24,7 @@ namespace Engine
 			const std::string& fragmentFilePath, 
 			const std::pair<std::string, std::string>& tesselationFilePaths = {"", ""}
 		);
+		bool Reload(const std::string& computeFilePath);
 
 		void Use();
 		void StopUsing();

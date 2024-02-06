@@ -19,6 +19,8 @@ SET(engine_files
 	shader.cc
 	camera.h
 	camera.cc
+	voxelizer.h
+	voxelizer.cc
 	marching_cubes.h
 	marching_cubes.cc
 	transform.h

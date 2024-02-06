@@ -1,7 +1,8 @@
 #include "window.h"
 #include "camera.h"
-#include "marching_cubes.h"
 #include "shader.h"
+#include "render_mesh.h"
+#include "voxelizer.h"
 #include "animation_factory.h"
 
 struct RenderTarget
@@ -40,13 +41,14 @@ struct AnimationBuildingState
 	std::vector<BuildingJointNode> buildingJointNodes;
 	std::vector<JointNode> jointNodes;
 	std::vector<Engine::JointWeightVolume> buildingWorldWeightVolumes;
-	size_t currentJointIndex;
 	Engine::AnimationPose buildingAnimationPose;
+	std::shared_ptr<AnimationObject> animationObject;
+
+	size_t currentJointIndex;
 	float currentKeyframeTime;
 	bool keyframeIsSelected;
 	float newAnimationDuration;
 	bool newAnimationLoop;
-	std::shared_ptr<AnimationObject> animationObject;
 
 	AnimationBuildingState();
 };
@@ -63,6 +65,12 @@ public:
 	Engine::Shader backfaceShader;
 	RenderTarget backfaceRenderTarget;
 
+	Engine::Voxelizer voxelizer;
+	bool hasGeneratedMesh;
+	glm::vec3 volumeMin;
+	glm::vec3 volumeMax;
+	float cellSize;
+
 	bool showDebugMesh;
 	Engine::RenderMesh jointMesh;
 	Engine::RenderMesh weightVolumeMesh;
@@ -76,6 +84,7 @@ public:
 	App_SetupTest();
 
 	void HandleInput(float deltaTime);
+	void ReloadSdf();
 	void DrawSDf();
 	void DrawAnimationData();
 	void DrawUI(float deltaTime);

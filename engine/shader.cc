@@ -149,6 +149,37 @@ namespace Engine
 		return true;
 	}
 
+	bool Shader::Reload(const std::string& computeFilePath)
+	{
+		// compile shader
+		TempShader computeShader = { 0 };
+
+		if (!TryLoadShader(computeFilePath, GL_COMPUTE_SHADER, computeShader.shader))
+			return false;
+
+		// create and link program
+		GLuint newProgram = glCreateProgram();
+		glAttachShader(newProgram, computeShader.shader);
+		glLinkProgram(newProgram);
+
+		GLint shaderLogSize;
+		glGetProgramiv(newProgram, GL_INFO_LOG_LENGTH, &shaderLogSize);
+		if (shaderLogSize > 0)
+		{
+			std::unique_ptr<char[]> errorMessage(new char[shaderLogSize]);
+			glGetProgramInfoLog(newProgram, shaderLogSize, NULL, errorMessage.get());
+			std::cout << "[ERROR] failed to link program '" << computeFilePath << "': " << errorMessage.get() << std::endl;
+			glDeleteProgram(newProgram);
+			return false;
+		}
+
+		if (program != 0)
+			Deinit();
+
+		program = newProgram;
+		return true;
+	}
+
 	void Shader::Deinit()
 	{
 		nameToLocation.clear();

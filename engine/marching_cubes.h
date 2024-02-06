@@ -4,14 +4,14 @@
 
 namespace Engine
 {
-	typedef float(*ScalarField_t)(const glm::vec3&);
-
 	void TriangulateScalarField(
-		RenderMesh& outMesh, 
-		ScalarField_t field, 
-		const glm::vec3& min, 
-		const glm::vec3& max, 
+		const float* p_scalarField, 
+		size_t sizeX,
+		size_t sizeY,
+		size_t sizeZ,
+		const glm::vec3& volumeMin,
 		float cellSize,
-		float surfaceOffset
+		float surfaceOffset,
+		RenderMesh& outMesh 
 	);
 }

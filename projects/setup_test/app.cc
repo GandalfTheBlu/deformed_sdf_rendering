@@ -3,30 +3,7 @@
 #include "file_watcher.h"
 #include "input.h"
 #include "default_meshes.h"
-
-float Box(glm::vec3 p, glm::vec3 b)
-{
-	glm::vec3 q = glm::abs(p) - b;
-	return glm::length(glm::max(q, 0.f)) + glm::min(glm::max(q.x, glm::max(q.y, q.z)), 0.f);
-}
-
-float Capsule(const glm::vec3& p, const glm::vec3& a, const glm::vec3& b, float radius)
-{
-	glm::vec3 pa = p - a;
-	glm::vec3 ba = b - a;
-	float h = glm::clamp(glm::dot(pa, ba) / glm::dot(ba, ba), 0.f, 1.f);
-	return glm::length(pa - ba * h) - radius;
-}
-
-float Sdf(const glm::vec3& p)
-{
-	float torso = Capsule(p, glm::vec3(0.f, -0.5f, 0.f), glm::vec3(0.f, 0.5f, 0.f), 0.25f);
-	glm::vec3 mirroredP = glm::vec3(glm::abs(p.x), p.y, p.z);
-	float arms = Capsule(mirroredP, glm::vec3(0.25f, 0.5f, 0.f), glm::vec3(0.75f, 0.5f, 0.f), 0.25f);
-	float legs = Capsule(mirroredP, glm::vec3(0.25f, -0.5f, 0.f), glm::vec3(0.25f, -1.f, 0.f), 0.25f);
-
-	return glm::min(torso, glm::min(arms, legs));
-}
+#include "marching_cubes.h"
 
 
 RenderTarget::RenderTarget() :
@@ -69,6 +46,10 @@ AnimationBuildingState::AnimationBuildingState() :
 
 
 App_SetupTest::App_SetupTest() :
+	hasGeneratedMesh(false),
+	volumeMin(-1.f),
+	volumeMax(1.f),
+	cellSize(0.1f),
 	showDebugMesh(false),
 	p_buildingState(nullptr),
 	animationObjectIndex(0)
@@ -114,21 +95,49 @@ void App_SetupTest::HandleInput(float deltaTime)
 	flyCam.transform = flyCam.transform * glm::mat4_cast(camRotation);
 }
 
-void SetKelvinletShaderData(Engine::Shader& shader, const Kelvinlet& kelvinlet, bool applyDeformation)
+void App_SetupTest::ReloadSdf()
 {
-	if (applyDeformation)
+	Engine::Voxelizer voxelizer;
+	if (!voxelizer.Reload("assets/shaders/voxelization_compute.glsl") || 
+		!sdfShader.Reload(
+			"assets/shaders/deform_vert.glsl",
+			"assets/shaders/deform_frag.glsl",
+			{
+				"assets/shaders/deform_tess_control.glsl",
+				"assets/shaders/deform_tess_eval.glsl"
+			}
+		))
 	{
-		shader.SetVec3("u_localKelvinletCenter", &kelvinlet.center[0]);
-		shader.SetVec3("u_localKelvinletForce", &kelvinlet.force[0]);
-		shader.SetFloat("u_kelvinletSharpness", kelvinlet.sharpness);
+		return;
 	}
-	else
-	{
-		glm::vec3 zero(0.f);
-		shader.SetVec3("u_localKelvinletCenter", &zero[0]);
-		shader.SetVec3("u_localKelvinletForce", &zero[0]);
-		shader.SetFloat("u_kelvinletSharpness", 1.f);
-	}
+
+	std::vector<float> sdf;
+	GLuint sizeX = 0;
+	GLuint sizeY = 0;
+	GLuint sizeZ = 0;
+
+	voxelizer.Voxelize(
+		volumeMin,
+		volumeMax,
+		glm::vec3(cellSize),
+		sdf,
+		sizeX,
+		sizeY,
+		sizeZ
+	);
+
+	Engine::TriangulateScalarField(
+		sdf.data(),
+		sizeX,
+		sizeY,
+		sizeZ,
+		volumeMin,
+		cellSize,
+		glm::length(glm::vec3(cellSize)),
+		sdfMesh
+	);
+
+	hasGeneratedMesh = true;
 }
 
 void SetShaderBuildingWeightVolumes
@@ -274,7 +283,6 @@ void App_SetupTest::DrawSDf()
 
 	sdfShader.StopUsing();
 	sdfMesh.Unbind();
-	
 }
 
 glm::mat4 AlignMatrix(const glm::vec3& up)
@@ -397,7 +405,21 @@ void App_SetupTest::DrawUI(float deltaTime)
 {
 	ImGui::Begin("Menu");
 	ImGui::Text("FPS: %.1f", 1.f / deltaTime);
-	
+	ImGui::NewLine();
+
+	if (ImGui::Button("Reload SDF"))
+		ReloadSdf();
+
+	ImGui::DragFloat3("volume min", &volumeMin[0], 0.05f, -20.f, 20.f, "%.3f", 1.f);
+	ImGui::DragFloat3("volume max", &volumeMax[0], 0.05f, -20.f, 20.f, "%.3f", 1.f);
+	ImGui::DragFloat("cell size", &cellSize, 0.01f, 0.01f, 1.f, "%.3f", 1.f);
+
+	if (!hasGeneratedMesh)
+	{
+		ImGui::End();
+		return;
+	}
+
 	if (ImGui::RadioButton("Show debug mesh", showDebugMesh))
 		showDebugMesh = !showDebugMesh;
 
@@ -587,22 +609,12 @@ void App_SetupTest::Init()
 	flyCam.sensitivity = 0.2f;
 	flyCam.speed = 3.f;
 
-	Engine::TriangulateScalarField(
-		sdfMesh,
-		Sdf,
-		glm::vec3(-1.5f, -1.75f, -1.5f),
-		glm::vec3(1.5f, 1.75f, 1.5f),
-		0.05f,
-		glm::length(glm::vec3(0.05f))
-	);
-	sdfShader.Reload(
-		"assets/shaders/deform_vert.glsl",
-		"assets/shaders/deform_frag.glsl",
-		{
-			"assets/shaders/deform_tess_control.glsl",
-			"assets/shaders/deform_tess_eval.glsl"
-		}
-	);
+	volumeMin = glm::vec3(-1.5f, -1.75f, -1.5f);
+	volumeMax = glm::vec3(1.5f, 1.75f, 1.5f);
+	cellSize = 0.1f;
+
+	ReloadSdf();
+
 	backfaceShader.Reload(
 		"assets/shaders/deform_vert.glsl",
 		"assets/shaders/backface_frag.glsl",
@@ -644,15 +656,6 @@ void App_SetupTest::Init()
 
 void App_SetupTest::UpdateLoop()
 {
-	Engine::FileWatcher shaderWatchers[7];
-	shaderWatchers[0].Init("assets/shaders/deform_vert.glsl");
-	shaderWatchers[1].Init("assets/shaders/deform_frag.glsl");
-	shaderWatchers[2].Init("assets/shaders/deform_tess_control.glsl");
-	shaderWatchers[3].Init("assets/shaders/deform_tess_eval.glsl");
-	shaderWatchers[4].Init("assets/shaders/deformation.glsl");
-	shaderWatchers[5].Init("assets/shaders/backface_frag.glsl");
-	shaderWatchers[6].Init("assets/shaders/backface_tess_eval.glsl");
-
 	double time0 = glfwGetTime();
 
 	while (!window.ShouldClose())
@@ -665,37 +668,15 @@ void App_SetupTest::UpdateLoop()
 
 		HandleInput(deltaTime);
 
-		for (size_t i = 0; i < 7; i++)
-		{
-			if (shaderWatchers[i].NewVersionAvailable())
-			{
-				sdfShader.Reload(
-					"assets/shaders/deform_vert.glsl",
-					"assets/shaders/deform_frag.glsl",
-					{
-						"assets/shaders/deform_tess_control.glsl",
-						"assets/shaders/deform_tess_eval.glsl"
-					}
-				);
-
-				backfaceShader.Reload(
-					"assets/shaders/deform_vert.glsl",
-					"assets/shaders/backface_frag.glsl",
-					{
-						"assets/shaders/deform_tess_control.glsl",
-						"assets/shaders/backface_tess_eval.glsl"
-					}
-				);
-
-				break;
-			}
-		}
-
 		if (animationFactory.CurrentStage() == AnimationObjectFactory::Stage::None && createdAnimationObjects.size() > 0)
 			createdAnimationObjects[animationObjectIndex]->Update(deltaTime);
 		
-		DrawSDf();
-		DrawAnimationData();
+		if (hasGeneratedMesh)
+		{
+			DrawSDf();
+			DrawAnimationData();
+		}
+
 		DrawUI(deltaTime);
 		
 

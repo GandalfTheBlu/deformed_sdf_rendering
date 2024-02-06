@@ -12,7 +12,7 @@ namespace Engine
 
     struct PointGrid
     {
-        std::vector<float> grid;
+        const float* p_grid;
         size_t sizeX;
         size_t sizeY;
         size_t sizeZ;
@@ -54,43 +54,6 @@ namespace Engine
         cell.edgeBitMask |= (static_cast<GLushort>(1) << edgeIndex);
     }
 
-    void InitPointGrid(
-        PointGrid& pointGrid,
-        ScalarField_t field,
-        const glm::vec3& min,
-        const glm::vec3& max,
-        float cellSize
-    )
-    {
-        assert(cellSize > 0.f &&
-            max.x > cellSize + min.x &&
-            max.y > cellSize + min.y &&
-            max.z > cellSize + min.z
-        );
-
-        size_t sizeX = pointGrid.sizeX = static_cast<size_t>((max.x - min.x) / cellSize) + 1;
-        size_t sizeY = pointGrid.sizeY = static_cast<size_t>((max.y - min.y) / cellSize) + 1;
-        size_t sizeZ = pointGrid.sizeZ = static_cast<size_t>((max.z - min.z) / cellSize) + 1;
-
-        // bottom
-        pointGrid.indexOffsets[0] = 0;
-        pointGrid.indexOffsets[1] = sizeY * sizeZ;
-        pointGrid.indexOffsets[2] = sizeY * sizeZ + 1;
-        pointGrid.indexOffsets[3] = 1;
-        // top
-        pointGrid.indexOffsets[4] = sizeZ;
-        pointGrid.indexOffsets[5] = sizeY * sizeZ + sizeZ;
-        pointGrid.indexOffsets[6] = sizeY * sizeZ + sizeZ + 1;
-        pointGrid.indexOffsets[7] = sizeZ + 1;
-
-        pointGrid.grid.reserve(sizeX * sizeY * sizeZ);
-
-        for (size_t x = 0; x < sizeX; x++)
-            for (size_t y = 0; y < sizeY; y++)
-                for (size_t z = 0; z < sizeZ; z++)
-                    pointGrid.grid.push_back(field(min + glm::vec3(x, y, z) * cellSize));
-    }
-
     float GetCornerValue(
         const PointGrid& pointGrid,
         size_t cellX,
@@ -100,7 +63,7 @@ namespace Engine
     )
     {
         size_t cellZeroIndex = cellX * pointGrid.sizeY * pointGrid.sizeZ + cellY * pointGrid.sizeZ + cellZ;
-        return pointGrid.grid[cellZeroIndex + pointGrid.indexOffsets[cornerIndex]];
+        return pointGrid.p_grid[cellZeroIndex + pointGrid.indexOffsets[cornerIndex]];
     }
 
     void InitCellGrid(
@@ -260,10 +223,9 @@ namespace Engine
         size_t cellY,
         size_t cellZ,
         const PointGrid& pointGrid, 
-        const glm::vec3& min, 
+        const glm::vec3& volumeMin, 
         float cellSize, 
-        float surfaceOffset,
-        ScalarField_t field
+        float surfaceOffset
     )
     {
         static const int triangulationTable[256][16]
@@ -546,7 +508,7 @@ namespace Engine
         size_t indicesCount = 0;
         size_t positionsCount = 0;
         size_t triangulationIndex = 0;
-        glm::vec3 cellZeroPos = min + cellSize * glm::vec3(cellX, cellY, cellZ);
+        glm::vec3 cellZeroPos = volumeMin + cellSize * glm::vec3(cellX, cellY, cellZ);
         size_t cellZeroIndex = cellX * cellGrid.sizeY * cellGrid.sizeZ + cellY * cellGrid.sizeZ + cellZ;
         CellData& cell = cellGrid.grid[cellZeroIndex];
 
@@ -622,25 +584,40 @@ namespace Engine
     }
 
 	void TriangulateScalarField(
-		RenderMesh& outMesh, 
-		ScalarField_t field, 
-		const glm::vec3& min, 
-		const glm::vec3& max, 
-		float cellSize,
-        float surfaceOffset
+        const float* p_scalarField,
+        size_t sizeX,
+        size_t sizeY,
+        size_t sizeZ,
+        const glm::vec3& volumeMin,
+        float cellSize,
+        float surfaceOffset,
+        RenderMesh& outMesh
 	)
-	{
-        MeshBuildData meshData;
+	{ 
         PointGrid pointGrid;
+        pointGrid.p_grid = p_scalarField;
+        pointGrid.sizeX = sizeX;
+        pointGrid.sizeY = sizeY;
+        pointGrid.sizeZ = sizeZ;
+        // bottom
+        pointGrid.indexOffsets[0] = 0;
+        pointGrid.indexOffsets[1] = sizeY * sizeZ;
+        pointGrid.indexOffsets[2] = sizeY * sizeZ + 1;
+        pointGrid.indexOffsets[3] = 1;
+        // top
+        pointGrid.indexOffsets[4] = sizeZ;
+        pointGrid.indexOffsets[5] = sizeY * sizeZ + sizeZ;
+        pointGrid.indexOffsets[6] = sizeY * sizeZ + sizeZ + 1;
+        pointGrid.indexOffsets[7] = sizeZ + 1;
+
         CellGrid cellGrid;
-        
-        InitPointGrid(pointGrid, field, min, max, cellSize);
         InitCellGrid(cellGrid, pointGrid.sizeX - 1, pointGrid.sizeY - 1, pointGrid.sizeZ - 1);
 
+        MeshBuildData meshData;
         for (size_t x=0; x<cellGrid.sizeX; x++)
         for (size_t y=0; y<cellGrid.sizeY; y++)
         for (size_t z=0; z<cellGrid.sizeZ; z++)
-            TriangulateCell(meshData, cellGrid, x, y, z, pointGrid, min, cellSize, surfaceOffset, field);
+            TriangulateCell(meshData, cellGrid, x, y, z, pointGrid, volumeMin, cellSize, surfaceOffset);
 
         DataBuffer indexBuffer;
         indexBuffer.bufferStart = (GLubyte*)meshData.indices.data();

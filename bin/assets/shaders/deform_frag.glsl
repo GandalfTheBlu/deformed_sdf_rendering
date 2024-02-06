@@ -1,5 +1,6 @@
 #version 430
 #include "assets/shaders/deformation.glsl"
+#include "assets/shaders/sdf.glsl"
 
 layout(location=0) in vec3 i_undeformedPos;
 
@@ -78,30 +79,6 @@ vec3 SolveBS23(
 	}
 	
 	return y1;
-}
-
-float Capsule(vec3 p, vec3 a, vec3 b, float radius)
-{
-	vec3 pa = p - a;
-	vec3 ba = b - a;
-	float h = clamp(dot(pa, ba) / dot(ba, ba), 0., 1.);
-	return length(pa - ba * h) - radius;
-}
-
-float Box(vec3 p, vec3 b)
-{
-	vec3 q = abs(p) - b;
-	return length(max(q, 0.)) + min(max(q.x, max(q.y, q.z)), 0.);
-}
-
-float Sdf(vec3 p)
-{
-	float torso = Capsule(p, vec3(0., -0.5, 0.), vec3(0., 0.5, 0.), 0.25);
-	vec3 mirroredP = vec3(abs(p.x), p.y, p.z);
-	float arms = Capsule(mirroredP, vec3(0.25, 0.5, 0.), vec3(0.75, 0.5, 0.), 0.25);
-	float legs = Capsule(mirroredP, vec3(0.25, -0.5, 0.), vec3(0.25, -1., 0.), 0.25);
-
-	return min(torso, min(arms, legs));
 }
 
 float OffsetError(float defDistTraveled)
