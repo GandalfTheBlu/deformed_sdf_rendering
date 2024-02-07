@@ -11,7 +11,7 @@ out float gl_FragDepth;
 
 // debug settings
 uniform int u_renderMode;// 0 = sphere trace, 1 = mesh
-uniform int u_boneIndex;// used to color based on weight (if not -1)
+uniform int u_jointIndex;// used to color based on weight (if not -1)
 
 uniform mat3 u_N;
 uniform mat4 u_MVP;
@@ -42,6 +42,8 @@ vec3 UndeformedDirection(vec3 undefPoint, vec3 defDirection)
 	return normalize(invJacobian * defDirection);
 }
 
+//float maxErr = 0.;
+
 vec3 SolveBS23(
 	vec3 undefPoint, 
 	vec3 defDirection, 
@@ -52,33 +54,48 @@ vec3 SolveBS23(
 {
 	// Bogacki-Shampine ode solver that returns the next undeformed point along the 
 	// deformed ray path
-	const float stepLength = 0.2 / 16.;
 	const vec3 startUndefPoint = undefPoint;
 	const float maxRadiusSquared = maxRadius * maxRadius;
+	
+	float h = 0.01;
+	const float c12 = 1. / 2.;
+	const float c34 = 3. / 4.;
+	const float c29 = 2. / 9.;
+	const float c13 = 1. / 3.;
+	const float c49 = 4. / 9.;
+	const float c724 = 7. / 24.;
+	const float c14 = 1. / 4.;
+	const float c18 = 1. / 8.;
+	
 	vec3 y1 = undefPoint;
 	vec3 k1 = startUndefDirection;
+	vec3 z = y1;
 	
 	for(int i=0; i<16; i++)
 	{	
-		vec3 k2 = UndeformedDirection(y1 + (0.5 * stepLength) * k1, defDirection);
-		vec3 k3 = UndeformedDirection(y1 + (0.75 * stepLength) * k2, defDirection);
-		vec3 y2 = y1 + stepLength * ((2. / 9.) * k1 + (1. / 3.) * k2 + (4. / 9.) * k3);
+		vec3 k2 = UndeformedDirection(y1 + (c12 * h) * k1, defDirection);
+		vec3 k3 = UndeformedDirection(y1 + (c34 * h) * k2, defDirection);
+		vec3 y2 = y1 + (c29 * h) * k1 + (c13 * h) * k2 + (c49 * h) * k3;
 		vec3 k4 = UndeformedDirection(y2, defDirection);
+		z = y1 + (c724 * h) * k1 + (c14 * h) * k2 + (c13 * h) * k3 + (c18 * h) * k4;
 		
-		y1 += stepLength * ((7. / 24) * k1 + 0.25 * k2 + (1. / 3.) * k3 + (1. / 8.) * k4);
-		k1 = k4;
-		
-		defDistTraveled += stepLength;
-		vec3 centerOffset = y1 - startUndefPoint;
+		defDistTraveled += h;
+		vec3 centerOffset = z - startUndefPoint;
 		float offsetSquared = dot(centerOffset, centerOffset);
 		
 		if(offsetSquared >= maxRadiusSquared)
 		{
 			break;
 		}
+		
+		y1 = y2;
+		k1 = k4;
+		
+		//vec3 diff = z - y1;
+		//maxErr = max(maxErr, dot(diff, diff));
 	}
 	
-	return y1;
+	return z;
 }
 
 float OffsetError(float defDistTraveled)
@@ -191,9 +208,9 @@ vec3 DeformationColor(vec3 undefPoint)
 	return color;
 }
 
-vec3 BoneWeightColor(vec3 undefPoint)
+vec3 JointWeightColor(vec3 undefPoint)
 {
-	float weight = BoneWeight(undefPoint, u_boneIndex);
+	float weight = JointWeight(undefPoint, u_jointIndex);
 	
 	return vec3(weight, 0., 0.);
 }
@@ -209,15 +226,15 @@ vec3 Shade(vec3 undefHitPoint, vec3 defDirection, vec3 lightDir)
 	vec3 lightColor = vec3(1., 0.9, 0.7);
 	vec3 albedo = vec3(0.);
 	
-	if(u_boneIndex != -1)
+	if(u_jointIndex != -1)
 	{
-		albedo = BoneWeightColor(undefHitPoint);
+		albedo = JointWeightColor(undefHitPoint);
 	}
 	else
 	{
 		albedo = DeformationColor(undefHitPoint);
+		//albedo = vec3(1.-maxErr);
 	}
-	
 	
 	return albedo * (ambientColor + lightColor * (diff + spec));
 }

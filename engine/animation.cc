@@ -282,6 +282,7 @@ namespace Engine
 	void InterpolateJoints(const Joint& startLeftJoint, const Joint& startRightJoint, Joint& joint, float alpha)
 	{
 		joint.localTransform = Lerp(startLeftJoint.localTransform, startRightJoint.localTransform, alpha);
+		joint.eulerAngles = glm::eulerAngles(joint.localTransform.rotation);
 
 		for (size_t i = 0; i < joint.childCount; i++)
 			InterpolateJoints(joint.p_children[i], startLeftJoint.p_children[i], startRightJoint.p_children[i], alpha);
@@ -290,9 +291,9 @@ namespace Engine
 	void BuildingAnimation::AddKeyframe(float timestamp, size_t& outIndex)
 	{
 		// check if initialized
-		assert(keyframes.size() > 1);
+		assert(keyframes.size() >= 2);
 
-		for (size_t i = 1; i < keyframes.size(); i++)
+		for (size_t i = 0; i < keyframes.size(); i++)
 		{
 			// avoid duplicates
 			if (keyframes[i]->timestamp == timestamp)

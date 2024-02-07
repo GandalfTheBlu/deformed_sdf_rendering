@@ -17,8 +17,8 @@ float Sdf(vec3 p)
 {
 	float torso = SD_Capsule(p, vec3(0., -0.5, 0.), vec3(0., 0.5, 0.), 0.25);
 	vec3 mirroredP = vec3(abs(p.x), p.y, p.z);
-	float arms = SD_Capsule(mirroredP, vec3(0.25, 0.5, 0.), vec3(0.75, 0.5, 0.), 0.1);
-	float legs = SD_Capsule(mirroredP, vec3(0.25, -0.5, 0.), vec3(0.25, -1.4, 0.), 0.15);
+	float arms = SD_Capsule(mirroredP, vec3(0.25, 0.5, 0.), vec3(1., 0.5, 0.), 0.1);
+	float legs = SD_Capsule(mirroredP, vec3(0.25, -0.5, 0.), vec3(0.4, -1.4, 0.), 0.15);
 
 	return min(torso, min(arms, legs));
 }

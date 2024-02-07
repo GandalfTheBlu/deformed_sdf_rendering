@@ -39,7 +39,7 @@ namespace Engine
 	{
 		return Transform(
 			t1.position + t1.rotation * (t1.scale * t2.position),
-			t2.rotation * t1.rotation,
+			t1.rotation * t2.rotation,
 			t1.scale * t2.scale
 		);
 	}

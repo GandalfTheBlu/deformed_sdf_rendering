@@ -256,6 +256,7 @@ AnimationObjectFactory::AnimationBuilder::RemoveKeyframeAndGoLeft()
 
 	animation.RemoveKeyframe(currentKeyframeIndex);
 	currentKeyframeIndex--;
+	p_currentJoint = &animation.keyframes[currentKeyframeIndex]->skeleton.root;
 
 	return *this;
 }
@@ -285,7 +286,7 @@ float AnimationObjectFactory::AnimationBuilder::GetKeyframeTime()
 
 bool AnimationObjectFactory::AnimationBuilder::CanKeyframeBeRemoved()
 {
-	return currentKeyframeIndex > 1 && currentKeyframeIndex + 1 < animation.keyframes.size();
+	return currentKeyframeIndex > 0 && currentKeyframeIndex + 1 < animation.keyframes.size();
 }
 
 AnimationObjectFactory::AnimationBuilder& 

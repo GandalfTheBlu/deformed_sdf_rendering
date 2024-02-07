@@ -148,7 +148,7 @@ void SetShaderBuildingWeightVolumes
 {
 	for (size_t i = 0; i < worldWeightVolumes.size(); i++)
 	{
-		std::string boneWeightName("u_boneWeightVolumes[" + std::to_string(i) + "]");
+		std::string boneWeightName("u_jointWeightVolumes[" + std::to_string(i) + "]");
 
 		const Engine::JointWeightVolume& weightVolume = worldWeightVolumes[i];
 
@@ -169,24 +169,25 @@ void SetShaderSkeletonData(
 	const Engine::AnimationPose* p_animationPose
 )
 {
+	shader.SetInt("u_jointCount", (GLint)jointCount);
+
 	for (size_t i = 0; i < jointCount; i++)
 	{
 		std::string indexStr(std::to_string(i));
-		std::string boneWeightName("u_boneWeightVolumes[" + indexStr + "]");
-		std::string boneMatrixName("u_boneMatrices[" + indexStr + "]");
+		std::string jointWeightName("u_jointWeightVolumes[" + indexStr + "]");
+		std::string defMatricesName("u_deformationMatrices[" + indexStr + "]");
 
 		const Engine::JointWeightVolume& weightVolume = p_bindPose->p_worldWeightVolumes[i];
 
 		float length = glm::length(weightVolume.startToEnd);
 		glm::vec3 direction = weightVolume.startToEnd / length;
 
-		shader.SetVec3(boneWeightName + ".startPoint", &weightVolume.startPoint[0]);
-		shader.SetVec3(boneWeightName + ".direction", &direction[0]);
-		shader.SetFloat(boneWeightName + ".length", length);
-		shader.SetFloat(boneWeightName + ".falloffRate", weightVolume.falloffRate);
-		shader.SetMat4(boneMatrixName, &p_animationPose->p_deformationMatrices[i][0][0]);
+		shader.SetVec3(jointWeightName + ".startPoint", &weightVolume.startPoint[0]);
+		shader.SetVec3(jointWeightName + ".direction", &direction[0]);
+		shader.SetFloat(jointWeightName + ".length", length);
+		shader.SetFloat(jointWeightName + ".falloffRate", weightVolume.falloffRate);
+		shader.SetMat4(defMatricesName, &p_animationPose->p_deformationMatrices[i][0][0]);
 	}
-	shader.SetInt("u_bonesCount", (GLint)jointCount);
 }
 
 void App_SetupTest::DrawSDf()
@@ -263,7 +264,7 @@ void App_SetupTest::DrawSDf()
 	{
 		SetShaderSkeletonData(sdfShader, jointCount, p_bindPose, p_animationPose);
 	}
-	sdfShader.SetInt("u_boneIndex", jointIndex);
+	sdfShader.SetInt("u_jointIndex", jointIndex);
 
 	glActiveTexture(GL_TEXTURE0);
 	glBindTexture(GL_TEXTURE_2D, backfaceRenderTarget.texture);
@@ -461,7 +462,10 @@ void App_SetupTest::DrawUI(float deltaTime)
 		ImGui::Text("Skeleton:");
 
 		if (ImGui::Button("Add child joint"))
+		{
 			builder.AddChild();
+			builder.GoToChild(builder.GetChildCount() - 1);
+		}
 		
 		if (builder.HasParent() && ImGui::Button("Remove joint"))
 			builder.RemoveJointAndGoToParent();
