@@ -192,14 +192,23 @@ void SetShaderSkeletonData(
 
 void App_SetupTest::DrawSDf()
 {
-	glm::mat4 VP = flyCam.camera.CalcP() * flyCam.camera.CalcV(flyCam.transform);
+	glm::mat4 P = flyCam.camera.CalcP();
+	glm::mat4 VP = P * flyCam.camera.CalcV(flyCam.transform);
 	glm::mat4 M(1.f);
 	glm::mat3 N = glm::transpose(glm::inverse(M));
 	glm::mat4 invM = glm::inverse(M);
 	glm::mat4 MVP = VP * M;
 	glm::vec3 localCamPos = invM * flyCam.transform[3];
-	float pixelRadius = glm::length(glm::vec2(2.f / window.Width(), 2.f / window.Height()));
+	glm::mat4 invP = glm::inverse(P);
+	glm::vec4 nearPlaneBottomLeft = invP * glm::vec4(-1.f, -1.f, -1.f, 1.f);
+	glm::vec4 nearPlaneTopRight = invP * glm::vec4(1.f, 1.f, -1.f, 1.f);
+	glm::vec2 nearPlaneWorldSize = glm::vec2(
+		nearPlaneTopRight.x - nearPlaneBottomLeft.x, 
+		nearPlaneTopRight.y - nearPlaneBottomLeft.y
+	);
 	glm::vec2 screenSize(window.Width(), window.Height());
+	glm::vec2 pixelWorldSize = nearPlaneWorldSize / screenSize;
+	float pixelRadius = glm::length(pixelWorldSize) * 0.5f;
 
 	size_t jointCount = 0;
 	const Engine::BindPose* p_bindPose = nullptr;
@@ -660,6 +669,9 @@ void App_SetupTest::Init()
 
 void App_SetupTest::UpdateLoop()
 {
+	Engine::FileWatcher shaderWatcher;
+	shaderWatcher.Init("assets/shaders/deform_frag.glsl");
+
 	double time0 = glfwGetTime();
 
 	while (!window.ShouldClose())
@@ -669,6 +681,18 @@ void App_SetupTest::UpdateLoop()
 		time0 = time1;
 
 		window.BeginUpdate();
+
+		if (shaderWatcher.NewVersionAvailable())
+		{
+			sdfShader.Reload(
+				"assets/shaders/deform_vert.glsl",
+				"assets/shaders/deform_frag.glsl",
+				{
+					"assets/shaders/deform_tess_control.glsl",
+					"assets/shaders/deform_tess_eval.glsl"
+				}
+			);
+		}
 
 		HandleInput(deltaTime);
 

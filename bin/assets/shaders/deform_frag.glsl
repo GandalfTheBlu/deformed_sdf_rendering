@@ -42,8 +42,6 @@ vec3 UndeformedDirection(vec3 undefPoint, vec3 defDirection)
 	return normalize(invJacobian * defDirection);
 }
 
-//float maxErr = 0.;
-
 vec3 SolveBS23(
 	vec3 undefPoint, 
 	vec3 defDirection, 
@@ -90,12 +88,40 @@ vec3 SolveBS23(
 		
 		y1 = y2;
 		k1 = k4;
-		
-		//vec3 diff = z - y1;
-		//maxErr = max(maxErr, dot(diff, diff));
 	}
 	
 	return z;
+}
+
+vec3 SolveEuler(
+	vec3 undefPoint, 
+	vec3 defDirection, 
+	vec3 startUndefDirection, 
+	float maxRadius, 
+	inout float defDistTraveled
+)
+{
+	const vec3 startUndefPoint = undefPoint;
+	const float maxRadiusSquared = maxRadius * maxRadius;
+	
+	float h = 0.01;
+	vec3 y = undefPoint;
+	
+	for(int i=0; i<16; i++)
+	{	
+		y += UndeformedDirection(y, defDirection) * h;
+		
+		defDistTraveled += h;
+		vec3 centerOffset = y - startUndefPoint;
+		float offsetSquared = dot(centerOffset, centerOffset);
+		
+		if(offsetSquared >= maxRadiusSquared)
+		{
+			break;
+		}
+	}
+	
+	return y;
 }
 
 float OffsetError(float defDistTraveled)
@@ -133,7 +159,7 @@ vec3 NLST(vec3 undefOrigin, vec3 defDirection, float toOriginDistance, float max
 		
 		mat3 invJacobian = inverse(DeformationJacobian(undefPoint));
 		
-		float minRadius = u_pixelRadius * defDistTraveled * determinant(invJacobian);
+		float minRadius = u_pixelRadius * defDistTraveled// * determinant(invJacobian);
 		
 		undefDirection = normalize(invJacobian * defDirection);
 		
@@ -233,7 +259,6 @@ vec3 Shade(vec3 undefHitPoint, vec3 defDirection, vec3 lightDir)
 	else
 	{
 		albedo = DeformationColor(undefHitPoint);
-		//albedo = vec3(1.-maxErr);
 	}
 	
 	return albedo * (ambientColor + lightColor * (diff + spec));
