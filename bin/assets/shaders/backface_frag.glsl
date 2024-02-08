@@ -4,9 +4,9 @@ layout(location=0) in vec3 i_deformedPos;
 
 out float o_distance;
 
-uniform vec3 u_localCameraPos;
+uniform vec3 u_cameraPos;
 
 void main()
 {
-	o_distance = distance(u_localCameraPos, i_deformedPos);
+	o_distance = distance(u_cameraPos, i_deformedPos);
 }

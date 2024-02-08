@@ -5,7 +5,7 @@ layout(triangles, equal_spacing, ccw) in;
 
 layout(location=0) out vec3 o_deformedPos;
 
-uniform mat4 u_MVP;
+uniform mat4 u_VP;
 
 void main()
 {
@@ -19,5 +19,5 @@ void main()
 	// apply deformation and MVP matrix
 	o_deformedPos = Deform(undefP);
 	
-	gl_Position = u_MVP * vec4(o_deformedPos, 1.);
+	gl_Position = u_VP * vec4(o_deformedPos, 1.);
 }

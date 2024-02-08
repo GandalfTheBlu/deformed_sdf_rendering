@@ -193,13 +193,10 @@ void SetShaderSkeletonData(
 void App_SetupTest::DrawSDf()
 {
 	glm::mat4 P = flyCam.camera.CalcP();
-	glm::mat4 VP = P * flyCam.camera.CalcV(flyCam.transform);
-	glm::mat4 M(1.f);
-	glm::mat3 N = glm::transpose(glm::inverse(M));
-	glm::mat4 invM = glm::inverse(M);
-	glm::mat4 MVP = VP * M;
-	glm::vec3 localCamPos = invM * flyCam.transform[3];
 	glm::mat4 invP = glm::inverse(P);
+	glm::mat4 VP = P * flyCam.camera.CalcV(flyCam.transform);
+	glm::mat4 invVP = glm::inverse(VP);
+	glm::vec3 cameraPos = flyCam.transform[3];
 	glm::vec4 nearPlaneBottomLeft = invP * glm::vec4(-1.f, -1.f, -1.f, 1.f);
 	glm::vec4 nearPlaneTopRight = invP * glm::vec4(1.f, 1.f, -1.f, 1.f);
 	glm::vec2 nearPlaneWorldSize = glm::vec2(
@@ -239,8 +236,8 @@ void App_SetupTest::DrawSDf()
 	sdfMesh.Bind();
 
 	backfaceShader.Use();
-	backfaceShader.SetMat4("u_MVP", &MVP[0][0]);
-	backfaceShader.SetVec3("u_localCameraPos", &localCamPos[0]);
+	backfaceShader.SetMat4("u_VP", &VP[0][0]);
+	backfaceShader.SetVec3("u_cameraPos", &cameraPos[0]);
 
 	SetShaderSkeletonData(backfaceShader, jointCount, p_bindPose, p_animationPose);
 	
@@ -255,9 +252,9 @@ void App_SetupTest::DrawSDf()
 	// draw sdf
 	sdfShader.Use();
 	sdfShader.SetInt("u_renderMode", 0);
-	sdfShader.SetMat3("u_N", &N[0][0]);
-	sdfShader.SetMat4("u_MVP", &MVP[0][0]);
-	sdfShader.SetVec3("u_localCameraPos", &localCamPos[0]);
+	sdfShader.SetMat4("u_VP", &VP[0][0]);
+	sdfShader.SetMat4("u_invVP", &invVP[0][0]);
+	sdfShader.SetVec3("u_cameraPos", &cameraPos[0]);
 	sdfShader.SetFloat("u_pixelRadius", pixelRadius);
 	sdfShader.SetVec2("u_screenSize", &screenSize[0]);
 

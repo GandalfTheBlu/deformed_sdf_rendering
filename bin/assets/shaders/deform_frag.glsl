@@ -13,9 +13,9 @@ out float gl_FragDepth;
 uniform int u_renderMode;// 0 = sphere trace, 1 = mesh
 uniform int u_jointIndex;// used to color based on weight (if not -1)
 
-uniform mat3 u_N;
-uniform mat4 u_MVP;
-uniform vec3 u_localCameraPos;
+uniform mat4 u_VP;
+uniform mat4 u_invVP;
+uniform vec3 u_cameraPos;
 uniform float u_pixelRadius;
 uniform vec2 u_screenSize;
 layout(binding=0) uniform sampler2D u_backfaceDistanceTexture;
@@ -79,9 +79,9 @@ vec3 SolveBS23(
 		
 		defDistTraveled += h;
 		vec3 centerOffset = z - startUndefPoint;
-		float offsetSquared = dot(centerOffset, centerOffset);
+		float radiusSquared = dot(centerOffset, centerOffset);
 		
-		if(offsetSquared >= maxRadiusSquared)
+		if(radiusSquared > maxRadiusSquared)
 		{
 			break;
 		}
@@ -143,12 +143,19 @@ vec3 AdjustTerminationPoint(vec3 undefTerminPoint, vec3 undefTerminDirection, fl
 	return undefTerminPoint + undefTerminDirection * offset;
 }
 
-vec3 NLST(vec3 undefOrigin, vec3 defDirection, float toOriginDistance, float maxDefDistance, inout bool hit)
+vec3 NLST(
+	vec3 undefOrigin, 
+	vec3 defDirection, 
+	float defDistToOrigin, 
+	float defMaxDist, 
+	float pixelRadiusPerLength, 
+	inout bool hit)
 {
 	// non-linear sphere tracing:
-	// perform ODE traversal inside each unbounding-sphere using the deformation jacobian
+	// perform ODE traversal of the deformation field 
+	// inside each unbounding-sphere using the deformation jacobian
 	// to transform the ray direction
-	float defDistTraveled = toOriginDistance;
+	float defDistTraveled = defDistToOrigin;
 	vec3 undefPoint = undefOrigin;
 	vec3 undefDirection = vec3(0.);
 	hit = false;
@@ -156,11 +163,8 @@ vec3 NLST(vec3 undefOrigin, vec3 defDirection, float toOriginDistance, float max
 	for(int i=0; i<64; i++)
 	{
 		float radius = Sdf(undefPoint);
-		
 		mat3 invJacobian = inverse(DeformationJacobian(undefPoint));
-		
-		float minRadius = u_pixelRadius * defDistTraveled// * determinant(invJacobian);
-		
+		float minRadius = pixelRadiusPerLength * defDistTraveled;
 		undefDirection = normalize(invJacobian * defDirection);
 		
 		if(radius < minRadius)
@@ -168,19 +172,21 @@ vec3 NLST(vec3 undefOrigin, vec3 defDirection, float toOriginDistance, float max
 			hit = true;
 			break;
 		}
-		if(defDistTraveled > maxDefDistance)
+		if(defDistTraveled > defMaxDist)
 		{
 			break;
 		}
 		
 		if(radius < minRadius * 3.)
 		{
-			// simple euler integration step
+			// use simple euler integration step when the radius is small
 			undefPoint += undefDirection * radius;
 			defDistTraveled += radius;
 		}
 		else
 		{
+			// when the distance to the surface is great, utilize a
+			// ODE solver to traverse the deformed path inside the unbounding-sphere
 			undefPoint = SolveBS23(
 				undefPoint, 
 				defDirection, 
@@ -207,14 +213,15 @@ vec3 WorldSdfGradient(vec3 undefPoint)
 {
 	const float step = 0.0001;
     const vec2 diff = vec2(1., -1.);
-    vec3 undefGradient = diff.xyy*Sdf(undefPoint + diff.xyy * step) + 
-					diff.yyx*Sdf(undefPoint + diff.yyx * step) + 
-					diff.yxy*Sdf(undefPoint + diff.yxy * step) + 
-					diff.xxx*Sdf(undefPoint + diff.xxx * step);
+    vec3 undefGradient = 
+		diff.xyy * Sdf(undefPoint + diff.xyy * step) + 
+		diff.yyx * Sdf(undefPoint + diff.yyx * step) + 
+		diff.yxy * Sdf(undefPoint + diff.yxy * step) + 
+		diff.xxx * Sdf(undefPoint + diff.xxx * step);
 					
 	mat3 invJacobian = inverse(DeformationJacobian(undefPoint));
 	vec3 defGradient = transpose(invJacobian) * undefGradient;
-	return normalize(u_N * defGradient);
+	return normalize(defGradient);
 }
 
 vec3 DeformationColor(vec3 undefPoint)
@@ -237,16 +244,14 @@ vec3 DeformationColor(vec3 undefPoint)
 vec3 JointWeightColor(vec3 undefPoint)
 {
 	float weight = JointWeight(undefPoint, u_jointIndex);
-	
 	return vec3(weight, 0., 0.);
 }
 
 vec3 Shade(vec3 undefHitPoint, vec3 defDirection, vec3 lightDir)
 {
-	vec3 worldNormal = WorldSdfGradient(undefHitPoint);
-	vec3 worldDirection = normalize(u_N * defDirection);
-	float diff = max(0., dot(worldNormal, -lightDir));
-	float spec = pow(max(0., dot(reflect(worldDirection, worldNormal), -lightDir)), 32.);
+	vec3 normal = WorldSdfGradient(undefHitPoint);
+	float diff = max(0., dot(normal, -lightDir));
+	float spec = pow(max(0., dot(reflect(defDirection, normal), -lightDir)), 32.);
 	
 	vec3 ambientColor = vec3(0.1, 0.1, 0.2);
 	vec3 lightColor = vec3(1., 0.9, 0.7);
@@ -266,7 +271,7 @@ vec3 Shade(vec3 undefHitPoint, vec3 defDirection, vec3 lightDir)
 
 float DeformedPointToDepth(vec3 defPoint)
 {
-	vec4 clipPoint = u_MVP * vec4(defPoint, 1.);
+	vec4 clipPoint = u_VP * vec4(defPoint, 1.);
 	return (clipPoint.z / clipPoint.w + 1.) * 0.5;
 }
 
@@ -274,18 +279,32 @@ void main()
 {
 	if(u_renderMode == 0)
 	{
-		float maxDefDistance = texture(u_backfaceDistanceTexture, gl_FragCoord.xy / u_screenSize).r;
+		// read the max tracing distance from texture
+		vec2 pixelUV = gl_FragCoord.xy / u_screenSize;
+		float defMaxDist = texture(u_backfaceDistanceTexture, pixelUV).r;
+		
+		// calculate the ray's origin and direction to the deformed start point
 		vec3 undefOrigin = i_undeformedPos;
-		vec3 defDirection = Deform(undefOrigin) - u_localCameraPos;
-		float toOriginDistance = length(defDirection);
-		defDirection *= 1. / toOriginDistance;
+		vec3 defOrigin = Deform(undefOrigin);
+		vec3 defDirection = defOrigin - u_cameraPos;
+		float defDistToOrigin = length(defDirection);
+		defDirection *= 1. / defDistToOrigin;
+		
+		// calculate how much the pixel radius scales with distance from the camera
+		// by calculating the pixel's world-distance from the camera
+		vec4 pixelClipPos = vec4(pixelUV * 2. - 1., -1., 1.);
+		vec4 pixelWorldPos = u_invVP * pixelClipPos;
+		pixelWorldPos.xyz /= pixelWorldPos.w;
+		float distToPixel = distance(pixelWorldPos.xyz, u_cameraPos);
+		float pixelRadiusPerLength = u_pixelRadius / distToPixel;
 		
 		bool hit = false;
 		vec3 undefHitPoint = NLST(
 			undefOrigin, 
 			defDirection, 
-			toOriginDistance, 
-			maxDefDistance, 
+			defDistToOrigin, 
+			defMaxDist, 
+			pixelRadiusPerLength,
 			hit
 		);
 		

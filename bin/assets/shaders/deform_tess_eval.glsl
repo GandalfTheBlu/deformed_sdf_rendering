@@ -5,7 +5,7 @@ layout(triangles, equal_spacing, ccw) in;
 
 layout(location=0) out vec3 o_undeformedPos;
 
-uniform mat4 u_MVP;
+uniform mat4 u_VP;
 
 void main()
 {
@@ -19,8 +19,8 @@ void main()
 	// pass the undeformed position to the fragment shader
 	o_undeformedPos = undefP;
 	
-	// finally, apply deformation and MVP matrix
+	// finally, apply deformation and VP matrix
 	vec3 defP = Deform(undefP);
 	
-	gl_Position = u_MVP * vec4(defP, 1.);
+	gl_Position = u_VP * vec4(defP, 1.);
 }
