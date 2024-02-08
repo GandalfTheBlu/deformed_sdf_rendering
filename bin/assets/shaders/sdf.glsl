@@ -1,4 +1,10 @@
 
+float SmoothUnion(float d1, float d2, float k) 
+{
+    float h = clamp(0.5 + 0.5*(d2-d1)/k, 0., 1.);
+    return mix(d2, d1, h) - k*h*(1.-h); 
+}
+
 float SD_Capsule(vec3 p, vec3 a, vec3 b, float radius)
 {
 	vec3 pa = p - a;
@@ -19,6 +25,9 @@ float Sdf(vec3 p)
 	vec3 mirroredP = vec3(abs(p.x), p.y, p.z);
 	float arms = SD_Capsule(mirroredP, vec3(0.25, 0.5, 0.), vec3(1., 0.5, 0.), 0.1);
 	float legs = SD_Capsule(mirroredP, vec3(0.25, -0.5, 0.), vec3(0.4, -1.4, 0.), 0.15);
+	float head = length(p - vec3(0., 1.1, 0.)) - 0.2;
+	float eyes = length(vec3(abs(p.x) - 0.1, p.y - 1.1, p.z + 0.2)) - 0.03;
+	head = min(head, eyes);
 
-	return min(torso, min(arms, legs));
+	return SmoothUnion(SmoothUnion(min(torso, head), arms, 0.2), legs, 0.2);
 }
