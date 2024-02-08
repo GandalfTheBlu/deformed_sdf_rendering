@@ -8,6 +8,10 @@ SET(setup_test_files
 	main.cc
 	app.h
 	app.cc
+	animation_object.h
+	animation_object.cc
+	animation_serializer.h
+	animation_serializer.cc
 	animation_factory.h
 	animation_factory.cc
 )

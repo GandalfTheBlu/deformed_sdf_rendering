@@ -1,27 +1,6 @@
 #include "animation_factory.h"
 #include <cassert>
 
-AnimationObject::AnimationObject() :
-	jointCount(0)
-{}
-
-
-void AnimationObject::Start(float duration, bool loop)
-{
-	animationPlayer.Start(duration, loop);
-}
-
-void AnimationObject::Update(float deltaTime)
-{
-	animationPlayer.Update(deltaTime, jointCount, bindPose, animation, animationPose);
-}
-
-AnimationObjectFactory::State::State() :
-	stage(Stage::None),
-	p_builder(nullptr)
-{}
-
-
 
 AnimationTransform::AnimationTransform() :
 	position(0.f),
@@ -102,7 +81,9 @@ AnimationObjectFactory::SkeletonBuilder&
 AnimationObjectFactory::SkeletonBuilder::AddChild()
 {
 	p_currentJoint->AddChild();
-	p_currentJoint->children.back()->localTransform.position = p_currentJoint->weightVolume.startToEnd;
+	p_currentJoint->children.back()->localTransform.position = 
+		p_currentJoint->weightVolume.startPoint + p_currentJoint->weightVolume.startToEnd;
+
 	return *this;
 }
 
@@ -443,6 +424,11 @@ AnimationObjectFactory::~AnimationObjectFactory()
 		delete p_state;
 	}
 }
+
+AnimationObjectFactory::State::State() :
+	stage(Stage::None),
+	p_builder(nullptr)
+{}
 
 AnimationObjectFactory::Stage AnimationObjectFactory::CurrentStage() const
 {

@@ -4,6 +4,8 @@
 #include "input.h"
 #include "default_meshes.h"
 #include "marching_cubes.h"
+#include "animation_serializer.h"
+#include "file_io.h"
 
 
 RenderTarget::RenderTarget() :
@@ -53,7 +55,10 @@ App_SetupTest::App_SetupTest() :
 	showDebugMesh(false),
 	p_buildingState(nullptr),
 	animationObjectIndex(0)
-{}
+{
+	for (size_t i = 0; i < 32; i++)
+		filepathBuffer[i] = '\0';
+}
 
 void App_SetupTest::HandleInput(float deltaTime)
 {
@@ -329,7 +334,7 @@ void App_SetupTest::DrawAnimationData()
 
 		for (size_t i=0; i < p_buildingState->buildingJointNodes.size(); i++)
 		{
-			glm::mat4 M(0.1f);
+			glm::mat4 M(0.02f);
 			M[3] = glm::vec4(p_buildingState->buildingJointNodes[i].jointWorldPosition, 1.f);
 			glm::mat4 MVP = VP * M;
 			glm::vec3 color(0.5f);
@@ -383,7 +388,7 @@ void App_SetupTest::DrawAnimationData()
 
 		for (size_t i=0; i < p_buildingState->jointNodes.size(); i++)
 		{
-			glm::mat4 M(0.1f);
+			glm::mat4 M(0.02f);
 			M[3] = glm::vec4(p_buildingState->jointNodes[i].jointWorldPosition, 1.f);
 			glm::mat4 MVP = VP * M;
 			glm::vec3 color(0.5f);
@@ -412,6 +417,17 @@ void App_SetupTest::DrawUI(float deltaTime)
 {
 	ImGui::Begin("Menu");
 	ImGui::Text("FPS: %.1f", 1.f / deltaTime);
+	ImGui::NewLine();
+
+	if (ImGui::Button("Open"))
+		ReadAnimationsFromFile(filepathBuffer);
+
+	ImGui::SameLine();
+
+	if (ImGui::Button("Save"))
+		WriteAnimationsToFile(filepathBuffer);
+
+	ImGui::InputText("filepath", filepathBuffer, 32);
 	ImGui::NewLine();
 
 	if (ImGui::Button("Reload SDF"))
@@ -492,23 +508,21 @@ void App_SetupTest::DrawUI(float deltaTime)
 		AnimationTransform transform = builder.GetJointTransform();
 
 		ImGui::Text("Transform:");
-		bool change = ImGui::DragFloat3("position", &transform.position[0], 0.05f, -10.f, 10.f, "%.3f", 1.f);
-		change |= ImGui::DragFloat3("rotation", &transform.eulerAngles[0], 0.05f, -4.f, 4.f, "%.3f", 1.f);
-		change |= ImGui::DragFloat("scale", &transform.scale, 0.05f, 0.01f, 20.f, "%.3f", 1.f);
+		bool change = ImGui::DragFloat3("position", &transform.position[0], 0.01f, -10.f, 10.f, "%.3f", 1.f);
+		change |= ImGui::DragFloat3("rotation", &transform.eulerAngles[0], 0.01f, -4.f, 4.f, "%.3f", 1.f);
+		change |= ImGui::DragFloat("scale", &transform.scale, 0.01f, 0.01f, 20.f, "%.3f", 1.f);
 		ImGui::NewLine();
 
 		if (change)
-		{
 			builder.SetJointTransform(transform);
-		}
 
 		// joint weight volume configuration
 		Engine::JointWeightVolume weightVolume = builder.GetJointWeightVolume();
 
 		ImGui::Text("Weight volume:");
-		change = ImGui::DragFloat3("start", &weightVolume.startPoint[0], 0.05f, -10.f, 10.f, "%.3f", 1.f);
-		change |= ImGui::DragFloat3("direction", &weightVolume.startToEnd[0], 0.05f, -10.f, 10.f, "%.3f", 1.f);
-		change |= ImGui::DragFloat("falloff rate", &weightVolume.falloffRate, 0.5f, 1.f, 100.f, "%.3f", 1.f);
+		change = ImGui::DragFloat3("start", &weightVolume.startPoint[0], 0.01f, -10.f, 10.f, "%.3f", 1.f);
+		change |= ImGui::DragFloat3("direction", &weightVolume.startToEnd[0], 0.01f, -10.f, 10.f, "%.3f", 1.f);
+		change |= ImGui::DragFloat("falloff rate", &weightVolume.falloffRate, 1.f, 1.f, 500.f, "%.3f", 1.f);
 		ImGui::NewLine();
 
 		if (change)
@@ -577,9 +591,9 @@ void App_SetupTest::DrawUI(float deltaTime)
 			AnimationTransform transform = builder.GetJointTransform();
 
 			ImGui::Text("Transform:");
-			bool change = ImGui::DragFloat3("position", &transform.position[0], 0.05f, -10.f, 10.f, "%.3f", 1.f);
-			change |= ImGui::DragFloat3("rotation", &transform.eulerAngles[0], 0.05f, -4.f, 4.f, "%.3f", 1.f);
-			change |= ImGui::DragFloat("scale", &transform.scale, 0.05f, 0.01f, 20.f, "%.3f", 1.f);
+			bool change = ImGui::DragFloat3("position", &transform.position[0], 0.01f, -10.f, 10.f, "%.3f", 1.f);
+			change |= ImGui::DragFloat3("rotation", &transform.eulerAngles[0], 0.01f, -4.f, 4.f, "%.3f", 1.f);
+			change |= ImGui::DragFloat("scale", &transform.scale, 0.01f, 0.01f, 20.f, "%.3f", 1.f);
 			ImGui::NewLine();
 
 			if (change)
@@ -599,12 +613,42 @@ void App_SetupTest::DrawUI(float deltaTime)
 			animationObjectIndex = createdAnimationObjects.size() - 1;
 		}
 
-		ImGui::DragFloat("Duration", &p_buildingState->newAnimationDuration, 0.02f, 0.1f, 60.f, "%.3f", 1.f);
+		ImGui::DragFloat("Duration", &p_buildingState->newAnimationDuration, 0.01f, 0.1f, 60.f, "%.3f", 1.f);
 		if (ImGui::RadioButton("Loop", p_buildingState->newAnimationLoop))
 			p_buildingState->newAnimationLoop = !p_buildingState->newAnimationLoop;
 	}
 
 	ImGui::End();
+}
+
+
+void App_SetupTest::WriteAnimationsToFile(const std::string& filepath)
+{
+	std::string buffer;
+
+	AppendData<size_t>(createdAnimationObjects.size(), buffer);
+
+	for (auto& animationObject : createdAnimationObjects)
+		AppendAnimationObjectToBuffer(*animationObject.get(), buffer);
+
+	Engine::WriteTextFile(filepath, buffer, false);
+}
+
+void App_SetupTest::ReadAnimationsFromFile(const std::string& filepath)
+{
+	std::string buffer;
+	size_t bufferIndex = 0;
+	Engine::ReadTextFile(filepath, buffer);
+
+	size_t objectCount = 0;
+	ReadData<size_t>(buffer, bufferIndex, objectCount);
+
+	for (size_t i = 0; i < objectCount; i++)
+	{
+		std::shared_ptr<AnimationObject> animationObject = std::make_shared<AnimationObject>();
+		ReadAnimationObjectFromBuffer(buffer, bufferIndex, *animationObject.get());
+		createdAnimationObjects.push_back(animationObject);
+	}
 }
 
 void App_SetupTest::Init()
@@ -622,6 +666,10 @@ void App_SetupTest::Init()
 	volumeMin = glm::vec3(-1.5f, -1.75f, -1.5f);
 	volumeMax = glm::vec3(1.5f, 1.75f, 1.5f);
 	cellSize = 0.1f;
+
+	std::string defaultFilepath("animations.anim");
+	for (size_t i = 0; i < defaultFilepath.size(); i++)
+		filepathBuffer[i] = defaultFilepath[i];
 
 	ReloadSdf();
 
@@ -666,8 +714,8 @@ void App_SetupTest::Init()
 
 void App_SetupTest::UpdateLoop()
 {
-	Engine::FileWatcher shaderWatcher;
-	shaderWatcher.Init("assets/shaders/deform_frag.glsl");
+	Engine::FileWatcher sdfWatcher;
+	sdfWatcher.Init("assets/shaders/sdf.glsl");
 
 	double time0 = glfwGetTime();
 
@@ -679,17 +727,8 @@ void App_SetupTest::UpdateLoop()
 
 		window.BeginUpdate();
 
-		if (shaderWatcher.NewVersionAvailable())
-		{
-			sdfShader.Reload(
-				"assets/shaders/deform_vert.glsl",
-				"assets/shaders/deform_frag.glsl",
-				{
-					"assets/shaders/deform_tess_control.glsl",
-					"assets/shaders/deform_tess_eval.glsl"
-				}
-			);
-		}
+		if (sdfWatcher.NewVersionAvailable())
+			ReloadSdf();
 
 		HandleInput(deltaTime);
 

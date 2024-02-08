@@ -80,6 +80,7 @@ public:
 	AnimationBuildingState* p_buildingState;
 	std::vector<std::shared_ptr<AnimationObject>> createdAnimationObjects;
 	size_t animationObjectIndex;
+	char filepathBuffer[32];
 
 	App_SetupTest();
 
@@ -88,6 +89,9 @@ public:
 	void DrawSDf();
 	void DrawAnimationData();
 	void DrawUI(float deltaTime);
+
+	void WriteAnimationsToFile(const std::string& filepath);
+	void ReadAnimationsFromFile(const std::string& filepath);
 
 	void Init();
 	void UpdateLoop();

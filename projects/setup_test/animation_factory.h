@@ -1,20 +1,6 @@
 #pragma once
-#include "animation.h"
+#include "animation_object.h"
 #include <memory>
-
-struct AnimationObject
-{
-	size_t jointCount;
-	Engine::BindPose bindPose;
-	Engine::Animation animation;
-	Engine::AnimationPose animationPose;
-	Engine::AnimationPlayer animationPlayer;
-
-	AnimationObject();
-
-	void Start(float duration, bool loop);
-	void Update(float deltaTime);
-};
 
 struct AnimationTransform
 {
