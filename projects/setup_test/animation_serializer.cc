@@ -1,6 +1,6 @@
 #include "animation_serializer.h"
 
-void AppendAnimationObjectToBuffer(const AnimationObject& object, std::string& buffer)
+void AppendAnimationObjectToBuffer(const AnimationObject& object, std::vector<char>& buffer)
 {
 	AppendData<size_t>(object.jointCount, buffer);
 	AppendData<size_t>(object.animation.keyframeCount, buffer);
@@ -22,7 +22,7 @@ void AppendAnimationObjectToBuffer(const AnimationObject& object, std::string& b
 	}
 }
 
-void ReadAnimationObjectFromBuffer(const std::string& buffer, size_t& inoutBufferIndex, AnimationObject& outObject)
+void ReadAnimationObjectFromBuffer(const std::vector<char>& buffer, size_t& inoutBufferIndex, AnimationObject& outObject)
 {
 	ReadData<size_t>(buffer, inoutBufferIndex, outObject.jointCount);
 	ReadData<size_t>(buffer, inoutBufferIndex, outObject.animation.keyframeCount);

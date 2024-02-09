@@ -624,21 +624,21 @@ void App_SetupTest::DrawUI(float deltaTime)
 
 void App_SetupTest::WriteAnimationsToFile(const std::string& filepath)
 {
-	std::string buffer;
+	std::vector<char> buffer;
 
 	AppendData<size_t>(createdAnimationObjects.size(), buffer);
 
 	for (auto& animationObject : createdAnimationObjects)
 		AppendAnimationObjectToBuffer(*animationObject.get(), buffer);
 
-	Engine::WriteTextFile(filepath, buffer, false);
+	Engine::WriteBinaryFile(filepath, buffer, false);
 }
 
 void App_SetupTest::ReadAnimationsFromFile(const std::string& filepath)
 {
-	std::string buffer;
+	std::vector<char> buffer;
 	size_t bufferIndex = 0;
-	Engine::ReadTextFile(filepath, buffer);
+	Engine::ReadBinaryFile(filepath, buffer);
 
 	size_t objectCount = 0;
 	ReadData<size_t>(buffer, bufferIndex, objectCount);
