@@ -8,33 +8,12 @@
 #include "file_io.h"
 
 
-RenderTarget::RenderTarget() :
-	framebuffer(0),
-	texture(0),
-	depthBuffer(0)
-{}
-
-RenderTarget::~RenderTarget()
-{
-	glDeleteFramebuffers(1, &framebuffer);
-	glDeleteTextures(1, &texture);
-	glDeleteRenderbuffers(1, &depthBuffer);
-}
-
-
 FlyCam::FlyCam() :
 	pitch(0.f),
 	yaw(0.f),
 	speed(1.f),
 	sensitivity(1.f),
 	transform(1.f)
-{}
-
-
-Kelvinlet::Kelvinlet() :
-	center(0.f),
-	force(0.f),
-	sharpness(1.f)
 {}
 
 
@@ -96,8 +75,8 @@ void App_SetupTest::HandleInput(float deltaTime)
 	glm::quat camRotation = glm::quat(glm::vec3(flyCam.pitch, flyCam.yaw, 0.f));
 
 	flyCam.transform = glm::mat4(1.f);
+	flyCam.transform = glm::mat4_cast(camRotation);
 	flyCam.transform[3] = glm::vec4(camPosition + move * (deltaTime * flyCam.speed), 1.f);
-	flyCam.transform = flyCam.transform * glm::mat4_cast(camRotation);
 }
 
 void App_SetupTest::ReloadSdf()
@@ -231,30 +210,8 @@ void App_SetupTest::DrawSDf()
 		p_animationPose = &animationObject->animationPose;
 	}
 
-	// draw backface to get max distance
-	glBindFramebuffer(GL_FRAMEBUFFER, backfaceRenderTarget.framebuffer);
-	glClearDepth(0.f);
-	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-	glDepthFunc(GL_GREATER);
-	glCullFace(GL_FRONT);
-
-	sdfMesh.Bind();
-
-	backfaceShader.Use();
-	backfaceShader.SetMat4("u_VP", &VP[0][0]);
-	backfaceShader.SetVec3("u_cameraPos", &cameraPos[0]);
-
-	SetShaderSkeletonData(backfaceShader, jointCount, p_bindPose, p_animationPose);
-	
-	sdfMesh.Draw(0, GL_PATCHES);
-
-	backfaceShader.StopUsing();
-	glClearDepth(1.f);
-	glDepthFunc(GL_LESS);
-	glCullFace(GL_BACK);
-	glBindFramebuffer(GL_FRAMEBUFFER, 0);
-
 	// draw sdf
+	sdfMesh.Bind();
 	sdfShader.Use();
 	sdfShader.SetInt("u_renderMode", 0);
 	sdfShader.SetMat4("u_VP", &VP[0][0]);
@@ -277,9 +234,6 @@ void App_SetupTest::DrawSDf()
 	}
 	sdfShader.SetInt("u_jointIndex", jointIndex);
 
-	glActiveTexture(GL_TEXTURE0);
-	glBindTexture(GL_TEXTURE_2D, backfaceRenderTarget.texture);
-
 	sdfMesh.Draw(0, GL_PATCHES);
 
 	if (showDebugMesh)
@@ -289,9 +243,6 @@ void App_SetupTest::DrawSDf()
 		sdfMesh.Draw(0, GL_PATCHES);
 		glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 	}
-
-	glActiveTexture(GL_TEXTURE0);
-	glBindTexture(GL_TEXTURE_2D, 0);
 
 	sdfShader.StopUsing();
 	sdfMesh.Unbind();
@@ -655,6 +606,7 @@ void App_SetupTest::Init()
 {
 	//window.Init(1000, 800, "deformed sdf");
 	window.Init(1600, 1200, "deformed sdf");
+	glfwSwapInterval(0);
 
 	glPatchParameteri(GL_PATCH_VERTICES, 3);
 
@@ -665,7 +617,7 @@ void App_SetupTest::Init()
 
 	volumeMin = glm::vec3(-1.5f, -1.75f, -1.5f);
 	volumeMax = glm::vec3(1.5f, 1.75f, 1.5f);
-	cellSize = 0.1f;
+	cellSize = 0.05f;
 
 	std::string defaultFilepath("animations.anim");
 	for (size_t i = 0; i < defaultFilepath.size(); i++)
@@ -673,51 +625,17 @@ void App_SetupTest::Init()
 
 	ReloadSdf();
 
-	backfaceShader.Reload(
-		"assets/shaders/deform_vert.glsl",
-		"assets/shaders/backface_frag.glsl",
-		{
-			"assets/shaders/deform_tess_control.glsl",
-			"assets/shaders/backface_tess_eval.glsl"
-		}
-	);
-
 	Engine::GenerateUnitSphere(jointMesh);
 	Engine::GenerateUnitLine(weightVolumeMesh);
 	flatShader.Reload("assets/shaders/flat_vert.glsl", "assets/shaders/flat_frag.glsl");
-
-	glGenFramebuffers(1, &backfaceRenderTarget.framebuffer);
-	glBindFramebuffer(GL_FRAMEBUFFER, backfaceRenderTarget.framebuffer);
-
-	// add target texture
-	glGenTextures(1, &backfaceRenderTarget.texture);
-	glBindTexture(GL_TEXTURE_2D, backfaceRenderTarget.texture);
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_R32F, window.Width(), window.Height(), 0, GL_RED, GL_FLOAT, NULL);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, backfaceRenderTarget.texture, 0);
-
-	GLuint attachments[]{ GL_COLOR_ATTACHMENT0 };
-	glDrawBuffers(1, attachments);
-
-	// add depth buffer
-	glGenRenderbuffers(1, &backfaceRenderTarget.depthBuffer);
-	glBindRenderbuffer(GL_RENDERBUFFER, backfaceRenderTarget.depthBuffer);
-	glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT, window.Width(), window.Height());
-	glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, backfaceRenderTarget.depthBuffer);
-
-	assert(glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE);
-
-	glBindFramebuffer(GL_FRAMEBUFFER, 0);
-	glBindTexture(GL_TEXTURE_2D, 0);
 }
 
 void App_SetupTest::UpdateLoop()
 {
 	Engine::FileWatcher sdfWatcher;
-	sdfWatcher.Init("assets/shaders/sdf.glsl");
+	sdfWatcher.Init("assets/shaders/deformation.glsl");
 
-	double time0 = glfwGetTime();
+	double time0 = 0.;
 
 	while (!window.ShouldClose())
 	{
@@ -728,7 +646,16 @@ void App_SetupTest::UpdateLoop()
 		window.BeginUpdate();
 
 		if (sdfWatcher.NewVersionAvailable())
-			ReloadSdf();
+		{
+			sdfShader.Reload(
+				"assets/shaders/deform_vert.glsl",
+				"assets/shaders/deform_frag.glsl",
+				{
+					"assets/shaders/deform_tess_control.glsl",
+					"assets/shaders/deform_tess_eval.glsl"
+				}
+			);
+		}
 
 		HandleInput(deltaTime);
 

@@ -5,16 +5,6 @@
 #include "voxelizer.h"
 #include "animation_factory.h"
 
-struct RenderTarget
-{
-	GLuint framebuffer;
-	GLuint texture;
-	GLuint depthBuffer;
-
-	RenderTarget();
-	~RenderTarget();
-};
-
 struct FlyCam
 {
 	float pitch;
@@ -25,15 +15,6 @@ struct FlyCam
 	Engine::Camera camera;
 
 	FlyCam();
-};
-
-struct Kelvinlet
-{
-	glm::vec3 center;
-	glm::vec3 force;
-	float sharpness;
-
-	Kelvinlet();
 };
 
 struct AnimationBuildingState
@@ -62,8 +43,6 @@ public:
 
 	Engine::RenderMesh sdfMesh;
 	Engine::Shader sdfShader;
-	Engine::Shader backfaceShader;
-	RenderTarget backfaceRenderTarget;
 
 	Engine::Voxelizer voxelizer;
 	bool hasGeneratedMesh;

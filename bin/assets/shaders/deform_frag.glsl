@@ -18,9 +18,8 @@ uniform mat4 u_invVP;
 uniform vec3 u_cameraPos;
 uniform float u_pixelRadius;
 uniform vec2 u_screenSize;
-layout(binding=0) uniform sampler2D u_backfaceDistanceTexture;
 
-mat3 DeformationJacobian(vec3 undefPoint)
+mat3 DeformationJacobian(const vec3 undefPoint)
 {	
 	// calculate the gradients in the x-, y-, and z-planes using
 	// the forward differences and construct the Jacobian matrix
@@ -36,26 +35,23 @@ mat3 DeformationJacobian(vec3 undefPoint)
 	return jacobian;
 }
 
-vec3 UndeformedDirection(vec3 undefPoint, vec3 defDirection)
+vec3 UndeformedDirection(const vec3 undefPoint, const vec3 defDirection)
 {
 	mat3 invJacobian = inverse(DeformationJacobian(undefPoint));
 	return normalize(invJacobian * defDirection);
 }
 
 vec3 SolveBS23(
-	vec3 undefPoint, 
-	vec3 defDirection, 
-	vec3 startUndefDirection, 
-	float maxRadius, 
-	inout float defDistTraveled
+	const vec3 undefPoint, 
+	const vec3 defDirection, 
+	const float maxRadius, 
+	inout float distTraveled
 )
 {
-	// Bogacki-Shampine ode solver that returns the next undeformed point along the 
+	// Bogacki-Shampine ODE solver that returns the next undeformed point along the 
 	// deformed ray path
-	const vec3 startUndefPoint = undefPoint;
-	const float maxRadiusSquared = maxRadius * maxRadius;
 	
-	float h = 0.01;
+	const float h = 0.01;
 	const float c12 = 1. / 2.;
 	const float c34 = 3. / 4.;
 	const float c29 = 2. / 9.;
@@ -64,115 +60,101 @@ vec3 SolveBS23(
 	const float c724 = 7. / 24.;
 	const float c14 = 1. / 4.;
 	const float c18 = 1. / 8.;
+	const float paddedMaxRadius = maxRadius - h;
 	
-	vec3 y1 = undefPoint;
-	vec3 k1 = startUndefDirection;
-	vec3 z = y1;
+	vec3 y1 = vec3(0.);
+	vec3 y2 = vec3(0.);
+	vec3 y1_next = undefPoint;
+	vec3 k1 = vec3(0.);
+	vec3 k2 = vec3(0.);
+	vec3 k3 = vec3(0.);
+	vec3 k4 = vec3(0.);
+	vec3 k1_next = UndeformedDirection(undefPoint, defDirection);
+	
+	float newDistTraveled = 0.;
 	
 	for(int i=0; i<16; i++)
 	{	
-		vec3 k2 = UndeformedDirection(y1 + (c12 * h) * k1, defDirection);
-		vec3 k3 = UndeformedDirection(y1 + (c34 * h) * k2, defDirection);
-		vec3 y2 = y1 + (c29 * h) * k1 + (c13 * h) * k2 + (c49 * h) * k3;
-		vec3 k4 = UndeformedDirection(y2, defDirection);
-		z = y1 + (c724 * h) * k1 + (c14 * h) * k2 + (c13 * h) * k3 + (c18 * h) * k4;
+		// these intermediate values are used to ensure correct values in y1-2 and k1-4 if the loop
+		// runs out of iterations
+		y1 = y1_next;
+		k1 = k1_next;
 		
-		defDistTraveled += h;
-		vec3 centerOffset = z - startUndefPoint;
-		float radiusSquared = dot(centerOffset, centerOffset);
+		k2 = UndeformedDirection(y1 + (c12 * h) * k1, defDirection);
+		k3 = UndeformedDirection(y1 + (c34 * h) * k2, defDirection);
+		y2 = y1 + (c29 * h) * k1 + (c13 * h) * k2 + (c49 * h) * k3;
+		k4 = UndeformedDirection(y2, defDirection);
 		
-		if(radiusSquared > maxRadiusSquared)
+		newDistTraveled += h;
+		if(newDistTraveled > paddedMaxRadius)
 		{
 			break;
 		}
 		
-		y1 = y2;
-		k1 = k4;
+		y1_next = y2;
+		k1_next = k4;
 	}
 	
-	return z;
+	distTraveled += newDistTraveled;
+	
+	return y1 + (c724 * h) * k1 + (c14 * h) * k2 + (c13 * h) * k3 + (c18 * h) * k4;
 }
 
-vec3 SolveEuler(
-	vec3 undefPoint, 
-	vec3 defDirection, 
-	vec3 startUndefDirection, 
-	float maxRadius, 
-	inout float defDistTraveled
+float OffsetError(const float distTraveled)
+{
+	const float permittedErrorPerLength = 0.001;
+	return permittedErrorPerLength * distTraveled;
+}
+
+vec3 AdjustTerminationPoint(
+	const vec3 undefPoint, 
+	const vec3 undefDirection, 
+	const float distTraveled
 )
-{
-	const vec3 startUndefPoint = undefPoint;
-	const float maxRadiusSquared = maxRadius * maxRadius;
-	
-	float h = 0.01;
-	vec3 y = undefPoint;
-	
-	for(int i=0; i<16; i++)
-	{	
-		y += UndeformedDirection(y, defDirection) * h;
-		
-		defDistTraveled += h;
-		vec3 centerOffset = y - startUndefPoint;
-		float offsetSquared = dot(centerOffset, centerOffset);
-		
-		if(offsetSquared >= maxRadiusSquared)
-		{
-			break;
-		}
-	}
-	
-	return y;
-}
-
-float OffsetError(float defDistTraveled)
-{
-	return 0.001 * defDistTraveled;
-}
-
-vec3 AdjustTerminationPoint(vec3 undefTerminPoint, vec3 undefTerminDirection, float defDistTraveled)
 {
 	float offset = 0.;
 	
 	for(int i=0; i<3; i++)
 	{
 		offset += 
-			Sdf(undefTerminPoint + undefTerminDirection * offset) - 
-			OffsetError(defDistTraveled + offset);
+			Sdf(undefPoint + undefDirection * offset) - 
+			OffsetError(distTraveled + offset);
 	}
 	
-	return undefTerminPoint + undefTerminDirection * offset;
+	return undefPoint + undefDirection * offset;
 }
 
 vec3 NLST(
-	vec3 undefOrigin, 
-	vec3 defDirection, 
-	float defDistToOrigin, 
-	float defMaxDist, 
-	float pixelRadiusPerLength, 
-	inout bool hit)
+	const vec3 undefOrigin, 
+	const vec3 defDirection, 
+	const float distToOrigin, 
+	const float undefPixelRadiusPerLength, 
+	const float maxDist,
+	const float maxRadius,
+	inout bool hit
+)
 {
 	// non-linear sphere tracing:
 	// perform ODE traversal of the deformation field 
-	// inside each unbounding-sphere using the deformation jacobian
+	// inside each unbounding-sphere using the inverse deformation jacobian
 	// to transform the ray direction
-	float defDistTraveled = defDistToOrigin;
+	
+	float distTraveled = distToOrigin;
 	vec3 undefPoint = undefOrigin;
-	vec3 undefDirection = vec3(0.);
 	hit = false;
 	
 	for(int i=0; i<64; i++)
 	{
 		float radius = Sdf(undefPoint);
-		mat3 invJacobian = inverse(DeformationJacobian(undefPoint));
-		float minRadius = pixelRadiusPerLength * defDistTraveled;
-		undefDirection = normalize(invJacobian * defDirection);
+		float minRadius = undefPixelRadiusPerLength * distTraveled;
 		
 		if(radius < minRadius)
 		{
 			hit = true;
 			break;
 		}
-		if(defDistTraveled > defMaxDist)
+		
+		if(distTraveled > maxDist || radius > maxRadius)
 		{
 			break;
 		}
@@ -180,8 +162,8 @@ vec3 NLST(
 		if(radius < minRadius * 3.)
 		{
 			// use simple euler integration step when the radius is small
-			undefPoint += undefDirection * radius;
-			defDistTraveled += radius;
+			undefPoint += UndeformedDirection(undefPoint, defDirection) * radius;
+			distTraveled += radius;
 		}
 		else
 		{
@@ -189,10 +171,9 @@ vec3 NLST(
 			// ODE solver to traverse the deformed path inside the unbounding-sphere
 			undefPoint = SolveBS23(
 				undefPoint, 
-				defDirection, 
-				undefDirection,  
+				defDirection,  
 				radius, 
-				defDistTraveled
+				distTraveled
 			);
 		}
 	}
@@ -200,16 +181,16 @@ vec3 NLST(
 	if(hit)
 	{
 		undefPoint = AdjustTerminationPoint(
-			undefPoint,
-			undefDirection,
-			defDistTraveled
-		);		
+			undefPoint, 
+			UndeformedDirection(undefPoint, defDirection), 
+			distTraveled
+		);
 	}
 	
 	return undefPoint;
 }
 
-vec3 WorldSdfGradient(vec3 undefPoint)
+vec3 WorldSdfGradient(const vec3 undefPoint)
 {
 	const float step = 0.0001;
     const vec2 diff = vec2(1., -1.);
@@ -221,10 +202,11 @@ vec3 WorldSdfGradient(vec3 undefPoint)
 					
 	mat3 invJacobian = inverse(DeformationJacobian(undefPoint));
 	vec3 defGradient = transpose(invJacobian) * undefGradient;
+	
 	return normalize(defGradient);
 }
 
-vec3 DeformationColor(vec3 undefPoint)
+vec3 DeformationColor(const vec3 undefPoint)
 {
 	const float spectrumScale = 2.;
 	float deformAmount = distance(undefPoint, Deform(undefPoint));
@@ -241,13 +223,13 @@ vec3 DeformationColor(vec3 undefPoint)
 	return color;
 }
 
-vec3 JointWeightColor(vec3 undefPoint)
+vec3 JointWeightColor(const vec3 undefPoint)
 {
 	float weight = JointWeight(undefPoint, u_jointIndex);
 	return vec3(weight, 0., 0.);
 }
 
-vec3 Shade(vec3 undefHitPoint, vec3 defDirection, vec3 lightDir)
+vec3 Shade(const vec3 undefHitPoint, const vec3 defDirection, const vec3 lightDir)
 {
 	vec3 normal = WorldSdfGradient(undefHitPoint);
 	float diff = max(0., dot(normal, -lightDir));
@@ -269,7 +251,7 @@ vec3 Shade(vec3 undefHitPoint, vec3 defDirection, vec3 lightDir)
 	return albedo * (ambientColor + lightColor * (diff + spec));
 }
 
-float DeformedPointToDepth(vec3 defPoint)
+float DeformedPointToDepth(const vec3 defPoint)
 {
 	vec4 clipPoint = u_VP * vec4(defPoint, 1.);
 	return (clipPoint.z / clipPoint.w + 1.) * 0.5;
@@ -278,33 +260,38 @@ float DeformedPointToDepth(vec3 defPoint)
 void main()
 {
 	if(u_renderMode == 0)
-	{
-		// read the max tracing distance from texture
-		vec2 pixelUV = gl_FragCoord.xy / u_screenSize;
-		float defMaxDist = texture(u_backfaceDistanceTexture, pixelUV).r;
-		
+	{	
 		// calculate the ray's origin and direction to the deformed start point
 		vec3 undefOrigin = i_undeformedPos;
 		vec3 defOrigin = Deform(undefOrigin);
 		vec3 defDirection = defOrigin - u_cameraPos;
-		float defDistToOrigin = length(defDirection);
-		defDirection *= 1. / defDistToOrigin;
+		float distToOrigin = length(defDirection);
+		defDirection *= 1. / distToOrigin;
 		
 		// calculate how much the pixel radius scales with distance from the camera
 		// by calculating the pixel's world-distance from the camera
+		vec2 pixelUV = gl_FragCoord.xy / u_screenSize;
 		vec4 pixelClipPos = vec4(pixelUV * 2. - 1., -1., 1.);
 		vec4 pixelWorldPos = u_invVP * pixelClipPos;
 		pixelWorldPos.xyz /= pixelWorldPos.w;
 		float distToPixel = distance(pixelWorldPos.xyz, u_cameraPos);
 		float pixelRadiusPerLength = u_pixelRadius / distToPixel;
+		// to prepare the coefficient for use in undeformed space, we scale with the "deformed-to-undeformed volume scale factor" at the origin point,
+		// that way we only have to multiply by distance traveled to get the undeformed cone radius at that point along the ray
+		float undefPixelRadiusPerLength = pixelRadiusPerLength * determinant(inverse(DeformationJacobian(undefOrigin)));
+		
+		// define a max distance and radius in undeformed space
+		float maxDist = distToOrigin + 2.;
+		float maxRadius = 0.2;
 		
 		bool hit = false;
 		vec3 undefHitPoint = NLST(
 			undefOrigin, 
 			defDirection, 
-			defDistToOrigin, 
-			defMaxDist, 
-			pixelRadiusPerLength,
+			distToOrigin, 
+			undefPixelRadiusPerLength,
+			maxDist,
+			maxRadius,
 			hit
 		);
 		
