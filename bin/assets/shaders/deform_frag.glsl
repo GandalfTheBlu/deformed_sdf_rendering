@@ -18,6 +18,8 @@ uniform mat4 u_invVP;
 uniform vec3 u_cameraPos;
 uniform float u_pixelRadius;
 uniform vec2 u_screenSize;
+uniform float u_maxDistanceFromSurface;
+uniform float u_maxRadius;
 
 mat3 DeformationJacobian(const vec3 undefPoint)
 {	
@@ -281,8 +283,8 @@ void main()
 		float undefPixelRadiusPerLength = pixelRadiusPerLength * determinant(inverse(DeformationJacobian(undefOrigin)));
 		
 		// define a max distance and radius in undeformed space
-		float maxDist = distToOrigin + 2.;
-		float maxRadius = 0.2;
+		float maxDist = distToOrigin + u_maxDistanceFromSurface;
+		float maxRadius = u_maxRadius;
 		
 		bool hit = false;
 		vec3 undefHitPoint = NLST(

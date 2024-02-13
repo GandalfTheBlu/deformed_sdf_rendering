@@ -1,5 +1,7 @@
 #include "app.h"
 #include <glm.hpp>
+#include <ctime>
+#include <regex>
 #include "file_watcher.h"
 #include "input.h"
 #include "default_meshes.h"
@@ -26,14 +28,57 @@ AnimationBuildingState::AnimationBuildingState() :
 {}
 
 
+PerformanceTestParameters::PerformanceTestParameters() :
+	testDuration(0.f),
+	meshCellSize(0.f),
+	animationObjectIndex(0),
+	cameraPosition(0.f),
+	maxDistanceFromSurface(0.f),
+	maxRadius(0.f)
+{}
+
+PerformanceTestParameters::PerformanceTestParameters(
+	float _testDuration,
+	float _meshCellSize,
+	size_t _animationObjectIndex,
+	const glm::vec3& _cameraPosition,
+	float _maxDistanceFromSurface,
+	float _maxRadius
+) :
+	testDuration(_testDuration),
+	meshCellSize(_meshCellSize),
+	animationObjectIndex(_animationObjectIndex),
+	cameraPosition(_cameraPosition),
+	maxDistanceFromSurface(_maxDistanceFromSurface),
+	maxRadius(_maxRadius)
+{}
+
+
+PerformanceTest::PerformanceTest() :
+	firstFrame(true),
+	totalTime(0.f)
+{}
+
+PerformanceTest::PerformanceTest(const PerformanceTestParameters& _parameters, size_t startSamplesCapacity) :
+	parameters(_parameters),
+	firstFrame(true),
+	totalTime(0.f)
+{
+	deltaTimes.reserve(startSamplesCapacity);
+}
+
+
 App_SetupTest::App_SetupTest() :
-	hasGeneratedMesh(false),
+	maxDistanceFromSurface(0.f),
+	maxRadius(0.f),
 	volumeMin(-1.f),
 	volumeMax(1.f),
 	cellSize(0.1f),
 	showDebugMesh(false),
 	p_buildingState(nullptr),
-	animationObjectIndex(0)
+	animationObjectIndex(0),
+	currentTestIndex(0),
+	isRunningTests(false)
 {
 	for (size_t i = 0; i < 32; i++)
 		filepathBuffer[i] = '\0';
@@ -120,8 +165,6 @@ void App_SetupTest::ReloadSdf()
 		glm::length(glm::vec3(cellSize)),
 		sdfMesh
 	);
-
-	hasGeneratedMesh = true;
 }
 
 void SetShaderBuildingWeightVolumes
@@ -219,6 +262,8 @@ void App_SetupTest::DrawSDf()
 	sdfShader.SetVec3("u_cameraPos", &cameraPos[0]);
 	sdfShader.SetFloat("u_pixelRadius", pixelRadius);
 	sdfShader.SetVec2("u_screenSize", &screenSize[0]);
+	sdfShader.SetFloat("u_maxDistanceFromSurface", maxDistanceFromSurface);
+	sdfShader.SetFloat("u_maxRadius", maxRadius);
 
 	int jointIndex = -1;
 
@@ -381,18 +426,26 @@ void App_SetupTest::DrawUI(float deltaTime)
 	ImGui::InputText("filepath", filepathBuffer, 32);
 	ImGui::NewLine();
 
+	if (createdAnimationObjects.size() > 0 && ImGui::Button("Run tests"))
+	{
+		StartTests();
+		ImGui::End();
+		return;
+	}
+
+	ImGui::NewLine();
+
 	if (ImGui::Button("Reload SDF"))
 		ReloadSdf();
 
 	ImGui::DragFloat3("volume min", &volumeMin[0], 0.05f, -20.f, 20.f, "%.3f", 1.f);
 	ImGui::DragFloat3("volume max", &volumeMax[0], 0.05f, -20.f, 20.f, "%.3f", 1.f);
 	ImGui::DragFloat("cell size", &cellSize, 0.01f, 0.01f, 1.f, "%.3f", 1.f);
+	ImGui::NewLine();
 
-	if (!hasGeneratedMesh)
-	{
-		ImGui::End();
-		return;
-	}
+	ImGui::DragFloat("max tracing distance from surface", &maxDistanceFromSurface, 0.05f, 0.1f, 2.f, "%.3f", 1.f);
+	ImGui::DragFloat("max tracing radius", &maxRadius, 0.05f, 0.1f, 2.f, "%.3f", 1.f);
+	ImGui::NewLine();
 
 	if (ImGui::RadioButton("Show debug mesh", showDebugMesh))
 		showDebugMesh = !showDebugMesh;
@@ -524,7 +577,7 @@ void App_SetupTest::DrawUI(float deltaTime)
 		// posing and navigating skeleton
 		if (p_buildingState->keyframeIsSelected)
 		{
-			ImGui::Text("Pose:");
+			ImGui::Text("Joint:");
 
 			for (size_t i = 0; i < builder.GetChildCount(); i++)
 			{
@@ -602,6 +655,137 @@ void App_SetupTest::ReadAnimationsFromFile(const std::string& filepath)
 	}
 }
 
+void App_SetupTest::StartTests()
+{
+	currentTestIndex = 0;
+	isRunningTests = true;
+	showDebugMesh = false;
+
+	for (PerformanceTest* p_test : tests)
+	{
+		p_test->firstFrame = true;
+		p_test->totalTime = 0.f;
+		p_test->deltaTimes.clear();
+	}
+}
+
+void App_SetupTest::UpdateTests(float deltaTime)
+{
+	PerformanceTest* p_test = tests[currentTestIndex];
+
+	// setup new test
+	if (p_test->firstFrame)
+	{
+		p_test->firstFrame = false;
+
+		// set camera position
+		flyCam.transform = glm::mat4(1.f);
+		flyCam.transform[3] = glm::vec4(p_test->parameters.cameraPosition, 1.f);
+
+		// set rendering parameters
+		maxDistanceFromSurface = p_test->parameters.maxDistanceFromSurface;
+		maxRadius = p_test->parameters.maxRadius;
+
+		// set animation pose at t=0
+		animationObjectIndex = p_test->parameters.animationObjectIndex;
+		auto& animationObject = createdAnimationObjects[animationObjectIndex];
+		animationObject->Start(1.f, false);
+		animationObject->Update(0.f);
+
+		// regenerate mesh based on cell size
+		cellSize = p_test->parameters.meshCellSize;
+		ReloadSdf();
+
+		// don't meassure this frame, since we did a bunch of file io
+		return;
+	}
+
+	DrawSDf();
+
+	p_test->deltaTimes.push_back(deltaTime);
+	p_test->totalTime += deltaTime;
+
+	if (p_test->totalTime >= p_test->parameters.testDuration)
+	{
+		currentTestIndex++;
+
+		if (currentTestIndex == tests.size())
+		{
+			isRunningTests = false;
+			SaveTestResults();
+		}
+	}
+}
+
+std::string Vec3ToString(const glm::vec3& v)
+{
+	return "(" + std::to_string(v.x) + ", " + std::to_string(v.y) + ", " + std::to_string(v.z) + ")";
+}
+
+void App_SetupTest::SaveTestResults()
+{
+	std::string resultStr;
+
+	for (PerformanceTest* p_test : tests)
+	{
+		resultStr += "parameters:\n";
+		resultStr += "\tmesh cell size: " + std::to_string(p_test->parameters.meshCellSize) + "\n";
+		resultStr += "\tanimation object index: " + std::to_string(p_test->parameters.animationObjectIndex) + "\n";
+		resultStr += "\tcamera position: " + Vec3ToString(p_test->parameters.cameraPosition) + "\n";
+		resultStr += "\tmax distance from surface: " + std::to_string(p_test->parameters.maxDistanceFromSurface) + "\n";
+		resultStr += "\tmax radius: " + std::to_string(p_test->parameters.maxRadius) + "\n";
+		resultStr += "results:\n";
+		resultStr += "\tnumber of samples: " + std::to_string(p_test->deltaTimes.size()) + "\n";
+		resultStr += "\ttotal time: " + std::to_string(p_test->totalTime) + "\n";
+		resultStr += "\tseconds per frame data: ";
+
+		for (size_t i=0; i<p_test->deltaTimes.size(); i++)
+			resultStr += (i > 0 ? ", " : "") + std::to_string(p_test->deltaTimes[i]);
+
+		resultStr += "\n\n";
+	}
+
+	std::time_t time = std::time(0);
+	std::string date = std::ctime(&time);
+
+	std::regex dateRgx("[A-Z][a-z]+\\s([A-Z][a-z]+)\\s(\\d+)\\s(\\d+):(\\d+):(\\d+)\\s(\\d+)");
+	std::smatch dateMatch;
+	std::regex_search(date, dateMatch, dateRgx);
+	std::string month = dateMatch[1];
+	std::string day = dateMatch[2];
+	std::string hour = dateMatch[3];
+	std::string minute = dateMatch[4];
+	std::string second = dateMatch[5];
+	std::string year = dateMatch[6];
+
+	std::map<std::string, std::string> monthNameToNum
+	{
+		{"Jan", "1"},
+		{"Feb", "2"},
+		{"Mar", "3"},
+		{"Apr", "4"},
+		{"May", "5"},
+		{"Jun", "6"},
+		{"Jul", "7"},
+		{"Aug", "8"},
+		{"Sep", "9"},
+		{"Oct", "10"},
+		{"Nov", "11"},
+		{"Dec", "12"}
+	};
+
+	std::string filename = 
+		"test_result_ " + 
+		year + "_" +
+		monthNameToNum[month] + "_" + 
+		day + "_" + 
+		hour + "_" +
+		minute + "_" + 
+		second + ".txt";
+
+	Engine::WriteTextFile("test_results/" + filename, resultStr, false);
+}
+
 void App_SetupTest::Init()
 {
 	//window.Init(1000, 800, "deformed sdf");
@@ -615,9 +799,17 @@ void App_SetupTest::Init()
 	flyCam.sensitivity = 0.2f;
 	flyCam.speed = 3.f;
 
+	maxDistanceFromSurface = 2.f;
+	maxRadius = 0.2f;
+
 	volumeMin = glm::vec3(-1.5f, -1.75f, -1.5f);
 	volumeMax = glm::vec3(1.5f, 1.75f, 1.5f);
 	cellSize = 0.05f;
+
+	tests.push_back(new PerformanceTest(PerformanceTestParameters(3.f, 0.05f, 0, glm::vec3(0.f, 0.f, -5.f), 2.f, 0.2f), 5 * 60));
+	tests.push_back(new PerformanceTest(PerformanceTestParameters(3.f, 0.05f, 0, glm::vec3(0.f, 0.f, -2.5f), 2.f, 0.2f), 5 * 60));
+	tests.push_back(new PerformanceTest(PerformanceTestParameters(3.f, 0.05f, 1, glm::vec3(0.f, 0.f, -5.f), 2.f, 0.2f), 5 * 60));
+	tests.push_back(new PerformanceTest(PerformanceTestParameters(3.f, 0.05f, 1, glm::vec3(0.f, 0.f, -2.5f), 2.f, 0.2f), 5 * 60));
 
 	std::string defaultFilepath("animations.anim");
 	for (size_t i = 0; i < defaultFilepath.size(); i++)
@@ -645,31 +837,33 @@ void App_SetupTest::UpdateLoop()
 
 		window.BeginUpdate();
 
-		if (sdfWatcher.NewVersionAvailable())
+		if (isRunningTests)
 		{
-			sdfShader.Reload(
-				"assets/shaders/deform_vert.glsl",
-				"assets/shaders/deform_frag.glsl",
-				{
-					"assets/shaders/deform_tess_control.glsl",
-					"assets/shaders/deform_tess_eval.glsl"
-				}
-			);
+			UpdateTests(deltaTime);
 		}
-
-		HandleInput(deltaTime);
-
-		if (animationFactory.CurrentStage() == AnimationObjectFactory::Stage::None && createdAnimationObjects.size() > 0)
-			createdAnimationObjects[animationObjectIndex]->Update(deltaTime);
-		
-		if (hasGeneratedMesh)
+		else
 		{
+			if (sdfWatcher.NewVersionAvailable())
+			{
+				sdfShader.Reload(
+					"assets/shaders/deform_vert.glsl",
+					"assets/shaders/deform_frag.glsl",
+					{
+						"assets/shaders/deform_tess_control.glsl",
+						"assets/shaders/deform_tess_eval.glsl"
+					}
+				);
+			}
+
+			HandleInput(deltaTime);
+
+			if (animationFactory.CurrentStage() == AnimationObjectFactory::Stage::None && createdAnimationObjects.size() > 0)
+				createdAnimationObjects[animationObjectIndex]->Update(deltaTime);
+
 			DrawSDf();
 			DrawAnimationData();
+			DrawUI(deltaTime);
 		}
-
-		DrawUI(deltaTime);
-		
 
 		window.EndUpdate();
 	}
@@ -678,5 +872,9 @@ void App_SetupTest::UpdateLoop()
 void App_SetupTest::Deinit()
 {
 	delete p_buildingState;
+
+	for (PerformanceTest* p_test : tests)
+		delete p_test;
+
 	window.Deinit();
 }
