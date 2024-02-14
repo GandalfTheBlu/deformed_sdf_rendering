@@ -18,5 +18,6 @@ namespace Engine
 
 		float GetNearPlane() const;
 		float GetFarPlane() const;
+		float GetFovy() const;
 	};
 }

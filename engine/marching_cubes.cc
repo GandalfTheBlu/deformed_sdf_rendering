@@ -1,6 +1,7 @@
 #include "marching_cubes.h"
 #include <vector>
 #include <glm.hpp>
+#include <array>
 
 namespace Engine
 {
@@ -22,7 +23,7 @@ namespace Engine
     struct CellData
     {
         GLushort edgeBitMask;
-        GLuint edgeToIndex[12];
+        std::array<GLuint, 12> edgeToIndex;
     };
 
     struct CellGrid
@@ -224,8 +225,10 @@ namespace Engine
         size_t cellZ,
         const PointGrid& pointGrid, 
         const glm::vec3& volumeMin, 
-        float cellSize, 
-        float surfaceOffset
+        const glm::vec3& cellSize,
+        float surfaceOffset,
+        glm::vec3& outMinCorner,
+        glm::vec3& outMaxCorner
     )
     {
         static const int triangulationTable[256][16]
@@ -489,14 +492,15 @@ namespace Engine
         };
 
         // store new indices and positions to efficiently find duplicates before adding to the mesh
-        GLuint newIndices[12]
+        std::array<GLuint, 16> newIndices
         {
+            0, 0, 0, 0,
             0, 0, 0, 0,
             0, 0, 0, 0,
             0, 0, 0, 0
         };
 
-        glm::vec3 newPositions[12]
+        std::array<glm::vec3, 12> newPositions
         {
             glm::vec3(0.f), glm::vec3(0.f), glm::vec3(0.f),
             glm::vec3(0.f), glm::vec3(0.f), glm::vec3(0.f),
@@ -568,6 +572,9 @@ namespace Engine
                 glm::vec3 position = InterpolateVertex(pointGrid, cellX, cellY, cellZ, edgeIndex, surfaceOffset);
                 position = position * cellSize + cellZeroPos;
 
+                outMinCorner = glm::min(outMinCorner, position);
+                outMaxCorner = glm::max(outMaxCorner, position);
+
                 GLuint newIndex = newIndices[indicesCount++] = static_cast<GLuint>(indexOffset + positionsCount);
                 newPositions[positionsCount++] = position;
 
@@ -589,8 +596,10 @@ namespace Engine
         size_t sizeY,
         size_t sizeZ,
         const glm::vec3& volumeMin,
-        float cellSize,
+        const glm::vec3& cellSize,
         float surfaceOffset,
+        glm::vec3& outMinCorner,
+        glm::vec3& outMaxCorner,
         RenderMesh& outMesh
 	)
 	{ 
@@ -613,11 +622,14 @@ namespace Engine
         CellGrid cellGrid;
         InitCellGrid(cellGrid, pointGrid.sizeX - 1, pointGrid.sizeY - 1, pointGrid.sizeZ - 1);
 
+        outMinCorner = glm::vec3(FLT_MAX);
+        outMaxCorner = glm::vec3(-FLT_MAX);
+
         MeshBuildData meshData;
         for (size_t x=0; x<cellGrid.sizeX; x++)
         for (size_t y=0; y<cellGrid.sizeY; y++)
         for (size_t z=0; z<cellGrid.sizeZ; z++)
-            TriangulateCell(meshData, cellGrid, x, y, z, pointGrid, volumeMin, cellSize, surfaceOffset);
+            TriangulateCell(meshData, cellGrid, x, y, z, pointGrid, volumeMin, cellSize, surfaceOffset, outMinCorner, outMaxCorner);
 
         DataBuffer indexBuffer;
         indexBuffer.bufferStart = (GLubyte*)meshData.indices.data();

@@ -10,8 +10,10 @@ namespace Engine
 		size_t sizeY,
 		size_t sizeZ,
 		const glm::vec3& volumeMin,
-		float cellSize,
+		const glm::vec3& cellSize,
 		float surfaceOffset,
+		glm::vec3& outMinCorner,
+		glm::vec3& outMaxCorner,
 		RenderMesh& outMesh 
 	);
 }

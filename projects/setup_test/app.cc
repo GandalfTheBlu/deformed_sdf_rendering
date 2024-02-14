@@ -29,26 +29,26 @@ AnimationBuildingState::AnimationBuildingState() :
 
 
 PerformanceTestParameters::PerformanceTestParameters() :
-	testDuration(0.f),
+	samplesCount(0),
 	meshCellSize(0.f),
 	animationObjectIndex(0),
-	cameraPosition(0.f),
+	cameraZPos(0.f),
 	maxDistanceFromSurface(0.f),
 	maxRadius(0.f)
 {}
 
 PerformanceTestParameters::PerformanceTestParameters(
-	float _testDuration,
+	size_t _samplesCount,
 	float _meshCellSize,
 	size_t _animationObjectIndex,
-	const glm::vec3& _cameraPosition,
+	float _cameraZPos,
 	float _maxDistanceFromSurface,
 	float _maxRadius
 ) :
-	testDuration(_testDuration),
+	samplesCount(_samplesCount),
 	meshCellSize(_meshCellSize),
 	animationObjectIndex(_animationObjectIndex),
-	cameraPosition(_cameraPosition),
+	cameraZPos(_cameraZPos),
 	maxDistanceFromSurface(_maxDistanceFromSurface),
 	maxRadius(_maxRadius)
 {}
@@ -57,23 +57,29 @@ PerformanceTestParameters::PerformanceTestParameters(
 PerformanceTest::PerformanceTest() :
 	state(State::Setup),
 	totalTime(0.f),
-	samplesCount(0)
+	minDeltaTime(FLT_MAX),
+	maxDeltaTime(-FLT_MAX),
+	samplesCollected(0)
 {}
 
 PerformanceTest::PerformanceTest(const PerformanceTestParameters& _parameters) :
 	parameters(_parameters),
 	state(State::Setup),
 	totalTime(0.f),
-	samplesCount(0)
+	minDeltaTime(FLT_MAX),
+	maxDeltaTime(-FLT_MAX),
+	samplesCollected(0)
 {}
 
 
 App_SetupTest::App_SetupTest() :
 	maxDistanceFromSurface(0.f),
 	maxRadius(0.f),
+	meshBoundingBoxSize(0.f),
 	volumeMin(-1.f),
 	volumeMax(1.f),
-	cellSize(0.1f),
+	voxelCount(0),
+	voxelSize(0.f),
 	showDebugMesh(false),
 	p_buildingState(nullptr),
 	animationObjectIndex(0),
@@ -141,30 +147,34 @@ void App_SetupTest::ReloadSdf()
 	}
 
 	std::vector<float> sdf;
-	GLuint sizeX = 0;
-	GLuint sizeY = 0;
-	GLuint sizeZ = 0;
 
 	voxelizer.Voxelize(
 		volumeMin,
 		volumeMax,
-		glm::vec3(cellSize),
-		sdf,
-		sizeX,
-		sizeY,
-		sizeZ
+		voxelCount.x,
+		voxelCount.y,
+		voxelCount.z,
+		voxelSize,
+		sdf
 	);
+
+	glm::vec3 minCorner(0.f);
+	glm::vec3 maxCorner(0.f);
 
 	Engine::TriangulateScalarField(
 		sdf.data(),
-		sizeX,
-		sizeY,
-		sizeZ,
+		voxelCount.x,
+		voxelCount.y,
+		voxelCount.z,
 		volumeMin,
-		cellSize,
-		glm::length(glm::vec3(cellSize)),
+		voxelSize,
+		glm::length(voxelSize),
+		minCorner,
+		maxCorner,
 		sdfMesh
 	);
+
+	meshBoundingBoxSize = maxCorner - minCorner;
 }
 
 void SetShaderBuildingWeightVolumes
@@ -440,7 +450,7 @@ void App_SetupTest::DrawUI(float deltaTime)
 
 	ImGui::DragFloat3("volume min", &volumeMin[0], 0.05f, -20.f, 20.f, "%.3f", 1.f);
 	ImGui::DragFloat3("volume max", &volumeMax[0], 0.05f, -20.f, 20.f, "%.3f", 1.f);
-	ImGui::DragFloat("cell size", &cellSize, 0.01f, 0.01f, 1.f, "%.3f", 1.f);
+	ImGui::DragInt3("voxel count", &voxelCount[0], 1.f, 1, 64, "%i");
 	ImGui::NewLine();
 
 	ImGui::DragFloat("max tracing distance from surface", &maxDistanceFromSurface, 0.05f, 0.1f, 2.f, "%.3f", 1.f);
@@ -665,7 +675,9 @@ void App_SetupTest::StartTests()
 	{
 		p_test->state = PerformanceTest::State::Setup;
 		p_test->totalTime = 0.f;
-		p_test->samplesCount = 0;
+		p_test->samplesCollected = 0;
+		p_test->minDeltaTime = FLT_MAX;
+		p_test->maxDeltaTime = -FLT_MAX;
 	}
 }
 
@@ -680,7 +692,7 @@ void App_SetupTest::UpdateTests(float deltaTime)
 
 		// set camera position
 		flyCam.transform = glm::mat4(1.f);
-		flyCam.transform[3] = glm::vec4(p_test->parameters.cameraPosition, 1.f);
+		flyCam.transform[3] = glm::vec4(0.f, 0.f, p_test->parameters.cameraZPos, 1.f);
 
 		// set rendering parameters
 		maxDistanceFromSurface = p_test->parameters.maxDistanceFromSurface;
@@ -693,7 +705,7 @@ void App_SetupTest::UpdateTests(float deltaTime)
 		animationObject->Update(0.f);
 
 		// regenerate mesh based on cell size
-		cellSize = p_test->parameters.meshCellSize;
+		voxelCount = glm::ivec3(glm::ceil((volumeMax - volumeMin) / p_test->parameters.meshCellSize));
 		ReloadSdf();
 
 		// don't draw this frame, since we already have polluted the next delta time with file io
@@ -708,12 +720,14 @@ void App_SetupTest::UpdateTests(float deltaTime)
 	else if (p_test->state == PerformanceTest::State::Sample)
 	{
 		p_test->totalTime += deltaTime;
-		p_test->samplesCount++;
+		p_test->minDeltaTime = glm::min(deltaTime, p_test->minDeltaTime);
+		p_test->maxDeltaTime = glm::max(deltaTime, p_test->maxDeltaTime);
+		p_test->samplesCollected++;
 	}
 
 	DrawSDf();
 
-	if (p_test->totalTime >= p_test->parameters.testDuration)
+	if (p_test->samplesCollected >= p_test->parameters.samplesCount)
 	{
 		currentTestIndex++;
 
@@ -735,39 +749,40 @@ std::string FloatToString(float v)
 void App_SetupTest::SaveTestResults()
 {
 	constexpr size_t tablesCount = 6;
-	std::string tables[tablesCount]
-	{
-		"test nr\tsample count\ttotal time\n",
-		"animation object index\tdt\n",
-		"mesh cell size\tdt\n",
-		"camera z position\tdt\n",
-		"max distance from surface\tdt\n",
-		"max radius\tdt\n"
-	};
+	std::string table =
+		"test nr\tsample count\ttotal time\taverage dt\t"
+		"min dt\tmax dt\t"
+		"animation object index\tjoint count\t"
+		"mesh cell size\tcamera z position\t"
+		"max distance from surface\tmax radius\n";
 
-	std::string metaData = "screen width/height\t" + 
-		std::to_string(window.Width()) + "\t" + std::to_string(window.Height()) + "\n\n";
+	std::string metaData =
+		"screen width/height\t" + std::to_string(window.Width()) + "\t" + std::to_string(window.Height()) + "\n" +
+		"camera near/far/fovy\t" + FloatToString(flyCam.camera.GetNearPlane()) + "\t" +
+		FloatToString(flyCam.camera.GetFarPlane()) + "\t" + FloatToString(flyCam.camera.GetFovy()) + "\n\n";
 
 	size_t testIndex = 0;
 	for (PerformanceTest* p_test : tests)
 	{
-		float averageTime = p_test->totalTime / p_test->samplesCount;
-		std::string rightColStr = "\t" + FloatToString(averageTime) + "\n";
+		float averageDeltaTime = p_test->totalTime / float(p_test->samplesCollected);
 
 		size_t i = 0;
-		tables[i++] += std::to_string(++testIndex) + "\t" + 
-			std::to_string(p_test->samplesCount) + "\t" + 
-			FloatToString(p_test->totalTime) + "\n";
-		tables[i++] += std::to_string(p_test->parameters.animationObjectIndex) + rightColStr;
-		tables[i++] += FloatToString(p_test->parameters.meshCellSize) + rightColStr;
-		tables[i++] += FloatToString(p_test->parameters.cameraPosition.z) + rightColStr;
-		tables[i++] += FloatToString(p_test->parameters.maxDistanceFromSurface) + rightColStr;
-		tables[i++] += FloatToString(p_test->parameters.maxRadius) + rightColStr;
+		table +=
+			std::to_string(++testIndex) + "\t" +
+			std::to_string(p_test->samplesCollected) + "\t" +
+			FloatToString(p_test->totalTime) + "\t" +
+			FloatToString(averageDeltaTime) + "\t" +
+			FloatToString(p_test->minDeltaTime) + "\t" +
+			FloatToString(p_test->maxDeltaTime) + "\t" +
+			std::to_string(p_test->parameters.animationObjectIndex) + "\t" +
+			std::to_string(createdAnimationObjects[p_test->parameters.animationObjectIndex]->jointCount) + "\t" +
+			FloatToString(p_test->parameters.meshCellSize) + "\t" +
+			FloatToString(p_test->parameters.cameraZPos) + "\t" +
+			FloatToString(p_test->parameters.maxDistanceFromSurface) + "\t" +
+			FloatToString(p_test->parameters.maxRadius) + "\n";
 	}
 
-	std::string resultStr = metaData;
-	for (size_t i = 0; i < tablesCount; i++)
-		resultStr += tables[i] + "\n";
+	std::string resultStr = metaData + table;
 
 	std::time_t time = std::time(0);
 	std::string date = std::ctime(&time);
@@ -826,14 +841,32 @@ void App_SetupTest::Init()
 
 	volumeMin = glm::vec3(-1.5f, -1.75f, -1.5f);
 	volumeMax = glm::vec3(1.5f, 1.75f, 1.5f);
-	cellSize = 0.05f;
+	voxelCount = glm::ivec3(glm::ceil((volumeMax - volumeMin) / 0.05f));
 
-	tests.push_back(new PerformanceTest(PerformanceTestParameters(3.f, 0.05f, 0, glm::vec3(0.f, 0.f, -5.f), 2.f, 0.2f)));
-	tests.push_back(new PerformanceTest(PerformanceTestParameters(3.f, 0.05f, 0, glm::vec3(0.f, 0.f, -2.5f), 2.f, 0.2f)));
-	tests.push_back(new PerformanceTest(PerformanceTestParameters(3.f, 0.05f, 1, glm::vec3(0.f, 0.f, -5.f), 2.f, 0.2f)));
-	tests.push_back(new PerformanceTest(PerformanceTestParameters(3.f, 0.05f, 1, glm::vec3(0.f, 0.f, -2.5f), 2.f, 0.2f)));
 
-	std::string defaultFilepath("animations.anim");
+	// test base values
+	PerformanceTestParameters params;
+	params.samplesCount = 60 * 3;
+	params.animationObjectIndex = 0;
+	params.meshCellSize = 0.05f;
+	params.cameraZPos = -5.f;
+	params.maxDistanceFromSurface = 2.f;
+	params.maxRadius = 0.2f;
+
+	for (size_t i = 0; i < 20; i++)
+	{
+		//params.animationObjectIndex = i;
+		//params.meshCellSize = 0.025f + 0.0025f * float(i);
+		//params.cameraZPos = -1.5f - 0.5f * float(i);
+		//params.maxRadius = 9999.f;
+		//params.maxDistanceFromSurface = 2.f + 1.f * float(i);
+		params.maxDistanceFromSurface = 9999.f;
+		params.maxRadius = 0.2f + 0.2f * float(i);
+		tests.push_back(new PerformanceTest(params));
+	}
+
+
+	std::string defaultFilepath("test_joints.anim");
 	for (size_t i = 0; i < defaultFilepath.size(); i++)
 		filepathBuffer[i] = defaultFilepath[i];
 

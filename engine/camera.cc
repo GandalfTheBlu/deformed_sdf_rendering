@@ -50,4 +50,9 @@ namespace Engine
 	{
 		return far;
 	}
+
+	float Camera::GetFovy() const
+	{
+		return fovy;
+	}
 }

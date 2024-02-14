@@ -16,13 +16,13 @@ namespace Engine
 		bool Reload(const std::string& voxelizeShaderFilePath);
 		// min and max inclusive (from edge to edge)
 		void Voxelize(
-			const glm::vec3& volumeMin, 
-			const glm::vec3& volumeMax, 
-			const glm::vec3& voxelSize, 
-			std::vector<float>& outData,
-			GLuint& outSizeX,
-			GLuint& outSizeY,
-			GLuint& outSizeZ
+			const glm::vec3& volumeMin,
+			const glm::vec3& volumeMax,
+			GLuint sizeX,
+			GLuint sizeY,
+			GLuint sizeZ,
+			glm::vec3& outVoxelSize,
+			std::vector<float>& outData
 		);
 	};
 }

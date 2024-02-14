@@ -36,19 +36,19 @@ struct AnimationBuildingState
 
 struct PerformanceTestParameters
 {
-	float testDuration;
+	size_t samplesCount;
 	float meshCellSize;
 	size_t animationObjectIndex;
-	glm::vec3 cameraPosition;
+	float cameraZPos;
 	float maxDistanceFromSurface;
 	float maxRadius;
 
 	PerformanceTestParameters();
 	PerformanceTestParameters(
-		float _testDuration,
+		size_t _samplesCount,
 		float _meshCellSize,
 		size_t _animationObjectIndex,
-		const glm::vec3& _cameraPosition,
+		float _cameraZPos,
 		float _maxDistanceFromSurface,
 		float _maxRadius
 	);
@@ -64,7 +64,9 @@ struct PerformanceTest
 		Sample
 	} state;
 	float totalTime;
-	size_t samplesCount;
+	float minDeltaTime;
+	float maxDeltaTime;
+	size_t samplesCollected;
 
 	PerformanceTest();
 	PerformanceTest(const PerformanceTestParameters& _parameters);
@@ -81,11 +83,13 @@ public:
 	Engine::Shader sdfShader;
 	float maxDistanceFromSurface;
 	float maxRadius;
+	glm::vec3 meshBoundingBoxSize;
 
 	Engine::Voxelizer voxelizer;
 	glm::vec3 volumeMin;
 	glm::vec3 volumeMax;
-	float cellSize;
+	glm::ivec3 voxelCount;
+	glm::vec3 voxelSize;
 
 	bool showDebugMesh;
 	Engine::RenderMesh jointMesh;
