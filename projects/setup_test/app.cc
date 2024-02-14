@@ -55,17 +55,17 @@ PerformanceTestParameters::PerformanceTestParameters(
 
 
 PerformanceTest::PerformanceTest() :
-	firstFrame(true),
-	totalTime(0.f)
+	state(State::Setup),
+	totalTime(0.f),
+	samplesCount(0)
 {}
 
-PerformanceTest::PerformanceTest(const PerformanceTestParameters& _parameters, size_t startSamplesCapacity) :
+PerformanceTest::PerformanceTest(const PerformanceTestParameters& _parameters) :
 	parameters(_parameters),
-	firstFrame(true),
-	totalTime(0.f)
-{
-	deltaTimes.reserve(startSamplesCapacity);
-}
+	state(State::Setup),
+	totalTime(0.f),
+	samplesCount(0)
+{}
 
 
 App_SetupTest::App_SetupTest() :
@@ -663,9 +663,9 @@ void App_SetupTest::StartTests()
 
 	for (PerformanceTest* p_test : tests)
 	{
-		p_test->firstFrame = true;
+		p_test->state = PerformanceTest::State::Setup;
 		p_test->totalTime = 0.f;
-		p_test->deltaTimes.clear();
+		p_test->samplesCount = 0;
 	}
 }
 
@@ -674,9 +674,9 @@ void App_SetupTest::UpdateTests(float deltaTime)
 	PerformanceTest* p_test = tests[currentTestIndex];
 
 	// setup new test
-	if (p_test->firstFrame)
+	if (p_test->state == PerformanceTest::State::Setup)
 	{
-		p_test->firstFrame = false;
+		p_test->state = PerformanceTest::State::SkipFrame;
 
 		// set camera position
 		flyCam.transform = glm::mat4(1.f);
@@ -689,21 +689,29 @@ void App_SetupTest::UpdateTests(float deltaTime)
 		// set animation pose at t=0
 		animationObjectIndex = p_test->parameters.animationObjectIndex;
 		auto& animationObject = createdAnimationObjects[animationObjectIndex];
-		animationObject->Start(1.f, false);
+		animationObject->Restart();
 		animationObject->Update(0.f);
 
 		// regenerate mesh based on cell size
 		cellSize = p_test->parameters.meshCellSize;
 		ReloadSdf();
 
-		// don't meassure this frame, since we did a bunch of file io
+		// don't draw this frame, since we already have polluted the next delta time with file io
 		return;
+	}
+	else if (p_test->state == PerformanceTest::State::SkipFrame)
+	{
+		// since we are meassuring the last frames delta time, we skip to sample the frame where
+		// we did file io
+		p_test->state = PerformanceTest::State::Sample;
+	}
+	else if (p_test->state == PerformanceTest::State::Sample)
+	{
+		p_test->totalTime += deltaTime;
+		p_test->samplesCount++;
 	}
 
 	DrawSDf();
-
-	p_test->deltaTimes.push_back(deltaTime);
-	p_test->totalTime += deltaTime;
 
 	if (p_test->totalTime >= p_test->parameters.testDuration)
 	{
@@ -717,37 +725,52 @@ void App_SetupTest::UpdateTests(float deltaTime)
 	}
 }
 
-std::string Vec3ToString(const glm::vec3& v)
+std::string FloatToString(float v)
 {
-	return "(" + std::to_string(v.x) + ", " + std::to_string(v.y) + ", " + std::to_string(v.z) + ")";
+	std::string numStr = std::to_string(v);
+	numStr[numStr.find_first_of('.')] = ',';
+	return numStr;
 }
 
 void App_SetupTest::SaveTestResults()
 {
-	std::string resultStr;
+	constexpr size_t tablesCount = 6;
+	std::string tables[tablesCount]
+	{
+		"test nr\tsample count\ttotal time\n",
+		"animation object index\tdt\n",
+		"mesh cell size\tdt\n",
+		"camera z position\tdt\n",
+		"max distance from surface\tdt\n",
+		"max radius\tdt\n"
+	};
 
+	std::string metaData = "screen width/height\t" + 
+		std::to_string(window.Width()) + "\t" + std::to_string(window.Height()) + "\n\n";
+
+	size_t testIndex = 0;
 	for (PerformanceTest* p_test : tests)
 	{
-		resultStr += "parameters:\n";
-		resultStr += "\tmesh cell size: " + std::to_string(p_test->parameters.meshCellSize) + "\n";
-		resultStr += "\tanimation object index: " + std::to_string(p_test->parameters.animationObjectIndex) + "\n";
-		resultStr += "\tcamera position: " + Vec3ToString(p_test->parameters.cameraPosition) + "\n";
-		resultStr += "\tmax distance from surface: " + std::to_string(p_test->parameters.maxDistanceFromSurface) + "\n";
-		resultStr += "\tmax radius: " + std::to_string(p_test->parameters.maxRadius) + "\n";
-		resultStr += "results:\n";
-		resultStr += "\tnumber of samples: " + std::to_string(p_test->deltaTimes.size()) + "\n";
-		resultStr += "\ttotal time: " + std::to_string(p_test->totalTime) + "\n";
-		resultStr += "\tseconds per frame data: ";
+		float averageTime = p_test->totalTime / p_test->samplesCount;
+		std::string rightColStr = "\t" + FloatToString(averageTime) + "\n";
 
-		for (size_t i=0; i<p_test->deltaTimes.size(); i++)
-			resultStr += (i > 0 ? ", " : "") + std::to_string(p_test->deltaTimes[i]);
-
-		resultStr += "\n\n";
+		size_t i = 0;
+		tables[i++] += std::to_string(++testIndex) + "\t" + 
+			std::to_string(p_test->samplesCount) + "\t" + 
+			FloatToString(p_test->totalTime) + "\n";
+		tables[i++] += std::to_string(p_test->parameters.animationObjectIndex) + rightColStr;
+		tables[i++] += FloatToString(p_test->parameters.meshCellSize) + rightColStr;
+		tables[i++] += FloatToString(p_test->parameters.cameraPosition.z) + rightColStr;
+		tables[i++] += FloatToString(p_test->parameters.maxDistanceFromSurface) + rightColStr;
+		tables[i++] += FloatToString(p_test->parameters.maxRadius) + rightColStr;
 	}
+
+	std::string resultStr = metaData;
+	for (size_t i = 0; i < tablesCount; i++)
+		resultStr += tables[i] + "\n";
 
 	std::time_t time = std::time(0);
 	std::string date = std::ctime(&time);
-
 	std::regex dateRgx("[A-Z][a-z]+\\s([A-Z][a-z]+)\\s(\\d+)\\s(\\d+):(\\d+):(\\d+)\\s(\\d+)");
 	std::smatch dateMatch;
 	std::regex_search(date, dateMatch, dateRgx);
@@ -774,16 +797,15 @@ void App_SetupTest::SaveTestResults()
 		{"Dec", "12"}
 	};
 
-	std::string filename = 
-		"test_result_ " + 
+	std::string dateFormat = 
 		year + "_" +
 		monthNameToNum[month] + "_" + 
 		day + "_" + 
 		hour + "_" +
 		minute + "_" + 
-		second + ".txt";
+		second;
 
-	Engine::WriteTextFile("test_results/" + filename, resultStr, false);
+	Engine::WriteTextFile("test_results/results_" + dateFormat + ".txt", resultStr, false);
 }
 
 void App_SetupTest::Init()
@@ -806,10 +828,10 @@ void App_SetupTest::Init()
 	volumeMax = glm::vec3(1.5f, 1.75f, 1.5f);
 	cellSize = 0.05f;
 
-	tests.push_back(new PerformanceTest(PerformanceTestParameters(3.f, 0.05f, 0, glm::vec3(0.f, 0.f, -5.f), 2.f, 0.2f), 5 * 60));
-	tests.push_back(new PerformanceTest(PerformanceTestParameters(3.f, 0.05f, 0, glm::vec3(0.f, 0.f, -2.5f), 2.f, 0.2f), 5 * 60));
-	tests.push_back(new PerformanceTest(PerformanceTestParameters(3.f, 0.05f, 1, glm::vec3(0.f, 0.f, -5.f), 2.f, 0.2f), 5 * 60));
-	tests.push_back(new PerformanceTest(PerformanceTestParameters(3.f, 0.05f, 1, glm::vec3(0.f, 0.f, -2.5f), 2.f, 0.2f), 5 * 60));
+	tests.push_back(new PerformanceTest(PerformanceTestParameters(3.f, 0.05f, 0, glm::vec3(0.f, 0.f, -5.f), 2.f, 0.2f)));
+	tests.push_back(new PerformanceTest(PerformanceTestParameters(3.f, 0.05f, 0, glm::vec3(0.f, 0.f, -2.5f), 2.f, 0.2f)));
+	tests.push_back(new PerformanceTest(PerformanceTestParameters(3.f, 0.05f, 1, glm::vec3(0.f, 0.f, -5.f), 2.f, 0.2f)));
+	tests.push_back(new PerformanceTest(PerformanceTestParameters(3.f, 0.05f, 1, glm::vec3(0.f, 0.f, -2.5f), 2.f, 0.2f)));
 
 	std::string defaultFilepath("animations.anim");
 	for (size_t i = 0; i < defaultFilepath.size(); i++)

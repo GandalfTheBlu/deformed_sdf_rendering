@@ -12,5 +12,6 @@ struct AnimationObject
 	AnimationObject();
 
 	void Start(float duration, bool loop);
+	void Restart();
 	void Update(float deltaTime);
 };

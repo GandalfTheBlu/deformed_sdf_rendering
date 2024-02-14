@@ -57,12 +57,17 @@ struct PerformanceTestParameters
 struct PerformanceTest
 {
 	PerformanceTestParameters parameters;
-	std::vector<float> deltaTimes;
-	bool firstFrame;
+	enum class State
+	{
+		Setup,
+		SkipFrame,
+		Sample
+	} state;
 	float totalTime;
+	size_t samplesCount;
 
 	PerformanceTest();
-	PerformanceTest(const PerformanceTestParameters& _parameters, size_t startSamplesCapacity);
+	PerformanceTest(const PerformanceTestParameters& _parameters);
 };
 
 class App_SetupTest

@@ -2,9 +2,18 @@
 #include <fstream>
 #include <sstream>
 #include <iostream>
+#include <filesystem>
 
 namespace Engine
 {
+	bool CreateDirectory(const std::string& path)
+	{
+		if (std::filesystem::exists(path))
+			return true;
+
+		return std::filesystem::create_directory(path);
+	}
+
 	bool ReadTextFile(const std::string& path, std::string& text)
 	{
 		std::ifstream file;
