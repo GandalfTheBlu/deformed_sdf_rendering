@@ -1,4 +1,5 @@
 
+// source: https://iquilezles.org/articles/distfunctions/
 float SmoothUnion(float d1, float d2, float k) 
 {
     float h = clamp(0.5 + 0.5*(d2-d1)/k, 0., 1.);
@@ -19,6 +20,41 @@ float SD_Box(vec3 p, vec3 b)
 	return length(max(q, 0.)) + min(max(q.x, max(q.y, q.z)), 0.);
 }
 
+// source: https://www.shadertoy.com/view/tsc3Rj & https://iquilezles.org/articles/mandelbulb/
+float SD_Mandelbulb(vec3 p)
+{
+	float power = 8.;
+	float dr = 1.0;
+	float r = 0.0;
+	vec3 z = p;
+	
+	for (int i=0; i<6; i++)
+	{
+		r = length(z);
+		
+		if (r > 2.){
+			break;
+		}
+		
+		// convert to polar coordinates
+		float theta = acos(z.z / r);
+		float phi = atan(z.y, z.x);
+
+		dr =  pow(r, power - 1.) * power * dr + 1.;
+		
+		// scale and rotate the point
+		float zr = pow(r, power);
+		theta = theta * power;
+		phi = phi * power;
+		
+		// convert back to cartesian coordinates
+		z = zr * vec3(sin(theta) * cos(phi), sin(phi) * sin(theta), cos(theta));
+		z += p;
+	}
+	
+	return 0.5 * log(r) * r / dr;
+}
+
 float Sdf(vec3 p)
 {
 	float torso = SD_Capsule(p, vec3(0., -0.5, 0.), vec3(0., 0.5, 0.), 0.25);
@@ -31,3 +67,8 @@ float Sdf(vec3 p)
 
 	return SmoothUnion(SmoothUnion(min(torso, head), arms, 0.2), legs, 0.2);
 }
+
+/*float Sdf(vec3 p)
+{
+	return SD_Mandelbulb(p);
+}*/

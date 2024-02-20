@@ -106,6 +106,8 @@ public:
 	size_t currentTestIndex;
 	bool isRunningTests;
 
+	bool showUI;
+
 	App_SetupTest();
 
 	void HandleInput(float deltaTime);

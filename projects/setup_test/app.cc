@@ -84,7 +84,8 @@ App_SetupTest::App_SetupTest() :
 	p_buildingState(nullptr),
 	animationObjectIndex(0),
 	currentTestIndex(0),
-	isRunningTests(false)
+	isRunningTests(false),
+	showUI(true)
 {
 	for (size_t i = 0; i < 32; i++)
 		filepathBuffer[i] = '\0';
@@ -128,6 +129,10 @@ void App_SetupTest::HandleInput(float deltaTime)
 	flyCam.transform = glm::mat4(1.f);
 	flyCam.transform = glm::mat4_cast(camRotation);
 	flyCam.transform[3] = glm::vec4(camPosition + move * (deltaTime * flyCam.speed), 1.f);
+
+
+	if (IP.GetKey(GLFW_KEY_ENTER).WasPressed())
+		showUI = !showUI;
 }
 
 void App_SetupTest::ReloadSdf()
@@ -421,6 +426,9 @@ void App_SetupTest::DrawAnimationData()
 
 void App_SetupTest::DrawUI(float deltaTime)
 {
+	if (!showUI)
+		return;
+
 	ImGui::Begin("Menu");
 	ImGui::Text("FPS: %.1f", 1.f / deltaTime);
 	ImGui::NewLine();
@@ -839,8 +847,10 @@ void App_SetupTest::Init()
 	maxDistanceFromSurface = 2.f;
 	maxRadius = 0.2f;
 
-	volumeMin = glm::vec3(-1.5f, -1.75f, -1.5f);
-	volumeMax = glm::vec3(1.5f, 1.75f, 1.5f);
+	//volumeMin = glm::vec3(-1.5f, -1.75f, -1.5f);
+	//volumeMax = glm::vec3(1.5f, 1.75f, 1.5f);
+	volumeMin = glm::vec3(-2.f);
+	volumeMax = glm::vec3(2.f);
 	voxelCount = glm::ivec3(glm::ceil((volumeMax - volumeMin) / 0.05f));
 
 
@@ -853,7 +863,7 @@ void App_SetupTest::Init()
 	params.maxDistanceFromSurface = 2.f;
 	params.maxRadius = 0.2f;
 
-	for (size_t i = 0; i < 20; i++)
+	/*for (size_t i = 0; i < 20; i++)
 	{
 		//params.animationObjectIndex = i;
 		//params.meshCellSize = 0.025f + 0.0025f * float(i);
@@ -863,7 +873,7 @@ void App_SetupTest::Init()
 		params.maxDistanceFromSurface = 9999.f;
 		params.maxRadius = 0.2f + 0.2f * float(i);
 		tests.push_back(new PerformanceTest(params));
-	}
+	}*/
 
 
 	std::string defaultFilepath("test_joints.anim");
@@ -880,7 +890,7 @@ void App_SetupTest::Init()
 void App_SetupTest::UpdateLoop()
 {
 	Engine::FileWatcher sdfWatcher;
-	sdfWatcher.Init("assets/shaders/deformation.glsl");
+	sdfWatcher.Init("assets/shaders/deform_frag.glsl");
 
 	double time0 = 0.;
 

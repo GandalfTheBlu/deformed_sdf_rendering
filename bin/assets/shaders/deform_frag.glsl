@@ -278,13 +278,71 @@ void main()
 		pixelWorldPos.xyz /= pixelWorldPos.w;
 		float distToPixel = distance(pixelWorldPos.xyz, u_cameraPos);
 		float pixelRadiusPerLength = u_pixelRadius / distToPixel;
-		// to prepare the coefficient for use in undeformed space, we scale with the "deformed-to-undeformed volume scale factor" at the origin point,
-		// that way we only have to multiply by distance traveled to get the undeformed cone radius at that point along the ray
-		float undefPixelRadiusPerLength = pixelRadiusPerLength * determinant(inverse(DeformationJacobian(undefOrigin)));
 		
 		// define a max distance and radius in undeformed space
 		float maxDist = distToOrigin + u_maxDistanceFromSurface;
 		float maxRadius = u_maxRadius;
+		
+		// --- test ---
+		/*
+		bool defaultHit = false;
+		bool alternativeHit = false;
+		vec3 defaultUndefHitPoint = vec3(0.);
+		vec3 alternativeUndefHitPoint = vec3(0.);
+		
+		// default method
+		{
+			float undefPixelRadiusPerLength = pixelRadiusPerLength * determinant(inverse(DeformationJacobian(undefOrigin)));
+			defaultUndefHitPoint = NLST(
+				undefOrigin, 
+				defDirection, 
+				distToOrigin, 
+				undefPixelRadiusPerLength,
+				maxDist,
+				maxRadius,
+				defaultHit
+			);
+		}
+		// alternative method
+		{
+			float undefPixelRadiusPerLength = pixelRadiusPerLength * pow(determinant(inverse(DeformationJacobian(undefOrigin))), 0.333);
+			alternativeUndefHitPoint = NLST(
+				undefOrigin, 
+				defDirection, 
+				distToOrigin, 
+				undefPixelRadiusPerLength,
+				maxDist,
+				maxRadius,
+				alternativeHit
+			);
+		}
+		
+		if(!defaultHit && !alternativeHit)
+		{
+			discard;
+		}
+		else if(defaultHit && alternativeHit)
+		{
+			o_color = vec4(0., 0., 30. * distance(defaultUndefHitPoint, alternativeUndefHitPoint), 1.);
+			gl_FragDepth = DeformedPointToDepth(Deform(defaultUndefHitPoint));
+		}
+		else if(defaultHit)
+		{
+			o_color = vec4(1., 0., 0., 1.);
+			gl_FragDepth = DeformedPointToDepth(Deform(defaultUndefHitPoint));
+		}
+		else
+		{
+			o_color = vec4(0., 1., 0., 1.);
+			gl_FragDepth = DeformedPointToDepth(Deform(alternativeUndefHitPoint));
+		}
+		*/
+		// --- test ---
+		
+		// to prepare the coefficient for use in undeformed space, we scale with the "deformed-to-undeformed volume scale factor" at the origin point,
+		// that way we only have to multiply by distance traveled to get the undeformed cone radius at that point along the ray
+		//float undefPixelRadiusPerLength = pixelRadiusPerLength * determinant(inverse(DeformationJacobian(undefOrigin)));
+		float undefPixelRadiusPerLength = pixelRadiusPerLength * pow(determinant(inverse(DeformationJacobian(undefOrigin))), 0.333);
 		
 		bool hit = false;
 		vec3 undefHitPoint = NLST(
