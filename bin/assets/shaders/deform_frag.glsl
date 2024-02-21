@@ -341,8 +341,8 @@ void main()
 		
 		// to prepare the coefficient for use in undeformed space, we scale with the "deformed-to-undeformed volume scale factor" at the origin point,
 		// that way we only have to multiply by distance traveled to get the undeformed cone radius at that point along the ray
-		//float undefPixelRadiusPerLength = pixelRadiusPerLength * determinant(inverse(DeformationJacobian(undefOrigin)));
-		float undefPixelRadiusPerLength = pixelRadiusPerLength * pow(determinant(inverse(DeformationJacobian(undefOrigin))), 0.333);
+		float undefPixelRadiusPerLength = pixelRadiusPerLength * determinant(inverse(DeformationJacobian(undefOrigin)));
+		//float undefPixelRadiusPerLength = pixelRadiusPerLength * pow(determinant(inverse(DeformationJacobian(undefOrigin))), 0.333);
 		
 		bool hit = false;
 		vec3 undefHitPoint = NLST(
