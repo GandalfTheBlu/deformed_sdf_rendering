@@ -890,7 +890,7 @@ void App_SetupTest::Init()
 void App_SetupTest::UpdateLoop()
 {
 	Engine::FileWatcher sdfWatcher;
-	sdfWatcher.Init("assets/shaders/deform_frag.glsl");
+	sdfWatcher.Init("assets/shaders/sdf.glsl");
 
 	double time0 = 0.;
 
@@ -910,14 +910,7 @@ void App_SetupTest::UpdateLoop()
 		{
 			if (sdfWatcher.NewVersionAvailable())
 			{
-				sdfShader.Reload(
-					"assets/shaders/deform_vert.glsl",
-					"assets/shaders/deform_frag.glsl",
-					{
-						"assets/shaders/deform_tess_control.glsl",
-						"assets/shaders/deform_tess_eval.glsl"
-					}
-				);
+				ReloadSdf();
 			}
 
 			HandleInput(deltaTime);
