@@ -890,7 +890,7 @@ void App_SetupTest::Init()
 void App_SetupTest::UpdateLoop()
 {
 	Engine::FileWatcher sdfWatcher;
-	sdfWatcher.Init("assets/shaders/deform_frag.glsl");
+	sdfWatcher.Init("assets/shaders/sdf.glsl");
 
 	double time0 = 0.;
 
