@@ -11,6 +11,7 @@ namespace Engine
 		Camera();
 		~Camera();
 
+		// fovy (vertical fov) in degrees
 		void Init(float _fovy, float _aspect, float _near, float _far);
 
 		glm::mat4 CalcV(const glm::mat4& worldMatrix) const;

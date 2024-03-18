@@ -55,7 +55,7 @@ float SD_Mandelbulb(vec3 p)
 	return 0.5 * log(r) * r / dr;
 }
 
-/*float Sdf(vec3 p)
+float Sdf(vec3 p)
 {
 	float torso = SD_Capsule(p, vec3(0., -0.5, 0.), vec3(0., 0.5, 0.), 0.25);
 	vec3 mirroredP = vec3(abs(p.x), p.y, p.z);
@@ -66,9 +66,9 @@ float SD_Mandelbulb(vec3 p)
 	head = min(head, eyes);
 
 	return SmoothUnion(SmoothUnion(min(torso, head), arms, 0.2), legs, 0.2);
-}*/
-
-float Sdf(vec3 p)
-{
-	return SD_Mandelbulb(p);
 }
+
+//float Sdf(vec3 p)
+//{
+//	return SD_Mandelbulb(p);
+//}

@@ -839,7 +839,7 @@ void App_SetupTest::Init()
 
 	glPatchParameteri(GL_PATCH_VERTICES, 3);
 
-	flyCam.camera.Init(70.f, float(window.Width()) / window.Height(), 0.3f, 500.f);
+	flyCam.camera.Init(50.f, float(window.Width()) / window.Height(), 0.3f, 500.f);
 	flyCam.transform[3] = glm::vec4(0.f, 0.f, -5.f, 1.f);
 	flyCam.sensitivity = 0.2f;
 	flyCam.speed = 3.f;

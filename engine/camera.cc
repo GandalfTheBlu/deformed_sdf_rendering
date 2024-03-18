@@ -38,7 +38,7 @@ namespace Engine
 
 	glm::mat4 Camera::CalcP() const
 	{
-		return glm::perspective(fovy, aspect, near, far);
+		return glm::perspective(glm::radians(fovy), aspect, near, far);
 	}
 
 	float Camera::GetNearPlane() const
